@@ -16,7 +16,6 @@ import "./index.css";
 function App() {
   const [activeTab, setActiveTab] = useState("liquidacion");
 
-  // Estados de Liquidación
   const [rows, setRows] = useState([]);
   const [hasInserted, setHasInserted] = useState(false);
 
@@ -33,7 +32,6 @@ function App() {
 
   const resultRef = useRef();
 
-  // Handlers Liquidación
   const handleCompraventaChange = useCallback((e) => setCompraventa(e.target.value), []);
   const handleCertificadoChange = useCallback((e) => setCertificado(e.target.value), []);
   const handleHipotecaChange = useCallback((e) => setHipoteca(e.target.value), []);
@@ -161,6 +159,7 @@ function App() {
         </button>
       </div>
 
+      {/* PESTAÑA LIQUIDACIÓN */}
       {activeTab === "liquidacion" && (
         <>
           <InputSection
@@ -180,16 +179,56 @@ function App() {
             onExportar={handleExportar}
             calcularDisabled={!hasInserted}
           />
+
           <ResultTable
             ref={resultRef}
             rows={rows}
             setRows={setRows}
             calcularDisabled={!hasInserted}
           />
+
+          <div id="notaria-info">
+            <h2>Nuestra Ubicación</h2>
+            <iframe
+              width="100%"
+              height="450"
+              style={{ border: 0, borderRadius: "8px", marginBottom: "2rem" }}
+              loading="lazy"
+              allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3988.5!2d-74.844!3d1.335!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMcKwMjAnMDYuMCJOIDc0wrA1MCczNC44Ilc!5e0!3m2!1ses!2sco!4v1700000000000"
+            />
+
+            <div className="info-grid">
+              <div className="contacto">
+                <h3>Contacto</h3>
+                <p><strong>Dirección:</strong> Cl. 5 # 8-5, Cartagena Del Chairá, Caquetá</p>
+                <p><strong>Teléfono:</strong> (322) 582 5736</p>
+                <p><strong>Email:</strong> unicartagenadelchaira@supernotariado.gov.co</p>
+              </div>
+              <div className="horario">
+                <h3>Horario de Atención</h3>
+                <p>Lunes a Viernes: 8:00 a.m. – 12:00 m y 2:00 p.m. a 6:00 p.m.</p>
+                <p>Sábado: Cerrado</p>
+                <p>Domingo: Cerrado</p>
+              </div>
+            </div>
+
+            <div className="certificados">
+              <p>Miembro de la UINL</p>
+              <img src={uinLogo} alt="UINL" style={{ height: "70px" }} />
+              <p style={{ marginTop: "1.5rem" }}>Certificado por:</p>
+              <img src={icontecLogo} alt="Icontec" style={{ height: "60px", marginRight: "20px" }} />
+              <img src={iqnetLogo} alt="IQNet" style={{ height: "60px" }} />
+            </div>
+          </div>
         </>
       )}
 
-      {activeTab === "escrituras" && <EscriturasPendientes />}
+      {/* PESTAÑA ESCRITURAS */}
+      {activeTab === "escrituras" && (
+        <EscriturasPendientes />
+      )}
     </div>
   );
 }

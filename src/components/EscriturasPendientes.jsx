@@ -6,6 +6,23 @@ import { db } from "../firebase";  // Asegúrate de que este archivo exista
 
 const ADMIN_PASSWORD = "notaria2026"; // ← CAMBIA ESTA CONTRASEÑA
 
+      // Función auxiliar para convertir fecha de Excel a string "YYYY-MM-DD"
+const excelDateToString = (value) => {
+  if (!value) return "";
+  // Si ya es string (ej: "2024-03-15"), lo devuelve tal cual
+  if (typeof value === "string") return value;
+  // Si es número, lo convierte desde el formato serial de Excel
+  if (typeof value === "number") {
+    const date = XLSX.SSF.parse_date_code(value);
+    if (!date) return "";
+    const yyyy = date.y;
+    const mm = String(date.m).padStart(2, "0");
+    const dd = String(date.d).padStart(2, "0");
+    return `${dd}-${mm}-${yyyy}`;
+  }
+  return "";
+};
+
 export default function EscriturasPendientes() {
   const [escrituras, setEscrituras] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -148,14 +165,20 @@ const handleImportExcel = (e) => {
         item: maxItem + contador, // ✅ Item correcto y secuencial
         acto: row[1] ? String(row[1]) : "",
         numeroEscritura: row[2] ? String(row[2]) : "",
-        fechaEscritura: row[3] ? String(row[3]) : "",
+        fechaEscritura: excelDateToString(row[3]), // ✅ Convierte el número serial de Excel a fecha legible
         matricula: row[4] ? String(row[4]) : "",
         notaDevolutiva: row[5] ? String(row[5]) : "NO",
         motivo: row[6] ? String(row[6]) : "",
       };
 
+
+
+
       await addDoc(collection(db, "escrituras"), newItem);
       contador++;
+   
+
+   
     }
     alert("Importación completada.");
     e.target.value = ""; // ✅ Limpia el input para permitir reimportar el mismo archivo
