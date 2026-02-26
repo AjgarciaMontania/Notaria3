@@ -120,40 +120,48 @@ export default function EscriturasPendientes() {
     XLSX.writeFile(wb, `RELACION_ESCRITURAS_PENDIENTES_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
-  const handleImportExcel = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+const handleImportExcel = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const bstr = evt.target.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+  const reader = new FileReader();
+  reader.onload = async (evt) => {
+    const bstr = evt.target.result;
+    const wb = XLSX.read(bstr, { type: 'binary' });
+    const wsname = wb.SheetNames[0];
+    const ws = wb.Sheets[wsname];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-      // Procesa las filas (ignora header)
-      for (let i = 1; i < data.length; i++) {
-        const row = data[i];
-        if (row.length < 7) continue; // Asegura campos mínimos
+    // ✅ Obtener el máximo item actual ANTES de importar
+    const querySnapshot = await getDocs(collection(db, "escrituras"));
+    const maxItem = querySnapshot.docs.length > 0
+      ? Math.max(...querySnapshot.docs.map(d => d.data().item || 0))
+      : 0;
 
-        const newItem = {
-          item: escrituras.length + i, // Calcula item secuencial
-          acto: row[1] || "",
-          numeroEscritura: row[2] || "",
-          fechaEscritura: row[3] || "",
-          matricula: row[4] || "",
-          notaDevolutiva: row[5] || "NO",
-          motivo: row[6] || "",
-        };
+    let contador = 1;
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      // ✅ Permite filas con al menos 3 columnas (acto + escritura mínimo)
+      if (!row || row.length < 2) continue;
 
-        await addDoc(collection(db, "escrituras"), newItem);
-      }
-      // onSnapshot actualizará la lista automáticamente
-      alert("Importación completada. Puedes editar los registros individualmente.");
-    };
-    reader.readAsBinaryString(file);
+      const newItem = {
+        item: maxItem + contador, // ✅ Item correcto y secuencial
+        acto: row[1] ? String(row[1]) : "",
+        numeroEscritura: row[2] ? String(row[2]) : "",
+        fechaEscritura: row[3] ? String(row[3]) : "",
+        matricula: row[4] ? String(row[4]) : "",
+        notaDevolutiva: row[5] ? String(row[5]) : "NO",
+        motivo: row[6] ? String(row[6]) : "",
+      };
+
+      await addDoc(collection(db, "escrituras"), newItem);
+      contador++;
+    }
+    alert("Importación completada.");
+    e.target.value = ""; // ✅ Limpia el input para permitir reimportar el mismo archivo
   };
+  reader.readAsBinaryString(file);
+};
 
   return (
     <div className="input-card" style={{ maxWidth: "1200px", margin: "2rem auto", padding: "2.5rem", background: "white", borderRadius: "16px", boxShadow: "0 10px 30px rgba(0,0,0,0.08)", border: "1px solid #e5e7eb" }}>
