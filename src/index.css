@@ -1,0 +1,357 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Arial:wght@400;700&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #fff;
+  padding: 20px;
+  min-height: 100vh;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  background-color: #fff;
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+  gap: 1rem;
+}
+
+header img.logo {
+  height: 60px;
+  object-fit: contain;
+}
+
+header h2 {
+  font-size: 1.8rem;
+  color: #d32f2f;
+  text-transform: uppercase;
+  margin: 0 1rem;
+}
+
+header img.office-photo {
+  height: 80px;
+  border-radius: 8px;
+}
+
+h1 {
+  text-align: center;
+  font-weight: bold;
+  font-size: 2.5rem;
+  color: #4caf50;
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+h1::after {
+  content: '';
+  display: block;
+  width: 200px;
+  height: 2px;
+  background-color: #ff9800;
+  margin: 0.5rem auto 0;
+}
+
+#input-section {
+  max-width: 1200px;
+  margin: 0 auto 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 0 20px;
+}
+
+#input-section > div {
+  display: flex;
+  flex-direction: column;
+}
+
+label {
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+input[type="number"],
+input[type="text"] {
+  padding: 10px;
+  font-size: 1.1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+input::placeholder {
+  color: #aaa;
+}
+
+#dinero-section {
+  grid-column: span 3; /* Span full width */
+}
+
+#button-container {
+  grid-column: span 3;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+button {
+  padding: 12px 28px;
+  font-size: 1.2rem;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+button.ingresar {
+  background-color: #388e3c; /* Green */
+}
+
+button.calcular {
+  background-color: #f57c00; /* Orange */
+}
+
+button.limpiar {
+  background-color: #d32f2f; /* Red */
+}
+
+button.exportar {
+  background-color: #7e57c2; /* Purple */
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #d32f2f;
+  font-weight: bold;
+  text-align: center;
+  margin: 1rem 0;
+  font-size: 1.2rem;
+  display: none;
+}
+
+.error-message.visible {
+  display: block;
+}
+
+#output-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  background-color: #4caf50;
+  color: white;
+  padding: 12px;
+  text-align: left;
+  font-weight: bold;
+}
+
+td {
+  padding: 12px;
+  border-top: 1px solid #ddd;
+  background-color: #f9f9f9;
+}
+
+td input, td textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+}
+
+td input[type="date"] {
+  text-align: center;
+}
+
+.summary-row td {
+  font-weight: bold;
+  background-color: #e8f5e9;
+}
+
+.additional-row td {
+  background-color: #fff3e0;
+}
+#notaria-info {
+  max-width: 1200px;
+  margin: 3rem auto 2rem;
+  padding: 0 20px;
+  text-align: center;
+}
+
+#notaria-info h2 {
+  color: #45a049;
+  margin-bottom: 1rem;
+}
+
+.info-grid {
+  display: flex;
+  justify-content: center;
+  gap: 4rem;
+  flex-wrap: wrap;
+  margin: 2rem 0;
+}
+
+.contacto, .horario {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  min-width: 280px;
+}
+
+.certificados {
+  margin-top: 2rem;
+}
+
+.certificados img {
+  margin: 0 10px;
+}
+
+/* ==================== NUEVO DISEÑO DEL FORMULARIO ==================== */
+.input-card {
+  background: white;
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 2.5rem;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+}
+
+.inputs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.input-row {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.three-columns {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.two-columns {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.input-group,
+.dinero-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.input-group label,
+.dinero-group label {
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: #166534;
+  margin-bottom: 0.6rem;
+}
+
+.input-group input,
+.dinero-group input {
+  padding: 14px 18px;
+  font-size: 1.1rem;
+  border: 2px solid #d1d5db;
+  border-radius: 10px;
+  background: #f9fafb;
+  transition: all 0.2s ease;
+}
+
+.input-group input:focus,
+.dinero-group input:focus {
+  border-color: #166534;
+  box-shadow: 0 0 0 4px rgba(22, 101, 52, 0.15);
+  outline: none;
+}
+
+.dinero-group label {
+  text-transform: uppercase;
+  font-size: 1.25rem;
+  letter-spacing: 0.5px;
+}
+
+/* Botones */
+.button-row {
+  display: flex;
+  justify-content: center;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin-top: 2rem;
+}
+
+.button-row button {
+  padding: 15px 34px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  min-width: 170px;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.button-row button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+}
+
+.button-row .ingresar  { background-color: #166534; color: white; }
+.button-row .calcular { background-color: #d97706; color: white; }
+.button-row .limpiar  { background-color: #b91c1c; color: white; }
+.button-row .exportar { background-color: #6b21a8; color: white; }
+
+.button-row button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Responsive - se apilan en móvil */
+@media (max-width: 768px) {
+  .three-columns,
+  .two-columns {
+    grid-template-columns: 1fr;
+  }
+  
+  .input-card {
+    padding: 1.8rem 1.2rem;
+    margin: 1rem;
+  }
+}
