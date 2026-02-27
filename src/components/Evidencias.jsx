@@ -3,7 +3,16 @@ import { collection, addDoc, onSnapshot, deleteDoc, doc } from "firebase/firesto
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "../firebase";
 
+
+
+
 const ADMIN_PASSWORD = "notaria2026";
+
+
+
+
+
+
 
 export default function Evidencias() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -59,7 +68,9 @@ export default function Evidencias() {
     try {
       for (const file of selectedFiles) {
         const storageRef = ref(storage, `evidencias/${currentFolder.name}/${file.name}`);
-        await uploadBytes(storageRef, file);
+        await uploadBytes(storageRef, file, {
+  contentType: file.type || "application/octet-stream"
+});
         const downloadURL = await getDownloadURL(storageRef);
 
         await addDoc(collection(db, "files"), {
@@ -82,16 +93,29 @@ export default function Evidencias() {
     }
   };
 
-  const deleteFile = async (fileId, storagePath) => {
-    if (!window.confirm("¿Eliminar este archivo?")) return;
-    try {
-      await deleteObject(ref(storage, storagePath));
-      await deleteDoc(doc(db, "files", fileId));
-      alert("Archivo eliminado");
-    } catch (e) {
-      alert("Error al eliminar");
+
+async function deleteFile(storagePath, docId) {
+  try {
+    // 1️⃣ Eliminar de Firebase Storage
+    const fileRef = ref(storage, storagePath);
+    await deleteObject(fileRef);
+
+    // 2️⃣ Eliminar documento de Firestore
+    await deleteDoc(doc(db, "files", docId));
+
+    alert("Archivo eliminado correctamente");
+  } catch (error) {
+    console.error("Error al eliminar:", error);
+
+    if (error.code === "storage/object-not-found") {
+      // Si ya no existe en storage, al menos elimina el documento
+      await deleteDoc(doc(db, "files", docId));
+      alert("El archivo ya no existía en Storage, pero se limpió la base de datos.");
+    } else {
+      alert("Error al eliminar: " + error.message);
     }
-  };
+  }
+}
 
   const deleteFolder = async () => {
     const filesInFolder = files.filter(f => f.folder === currentFolder.name);
@@ -106,6 +130,24 @@ export default function Evidencias() {
       alert("Error al eliminar carpeta");
     }
   };
+
+ async function uploadFile(file) {
+  try {
+    const storagePath = `evidencias/${currentFolder.name}/${file.name}`;
+    const storageRef = ref(storage, storagePath);
+
+    // 🔥 Subir archivo binario real
+    await uploadBytes(storageRef, file, {
+      contentType: file.type
+    });
+
+    const downloadURL = await getDownloadURL(storageRef);
+
+    console.log("Archivo subido correctamente");
+  } catch (error) {
+    console.error("Error al subir:", error);
+  }
+}
 
   const filesInCurrentFolder = files.filter(f => f.folder === currentFolder?.name);
 
@@ -272,17 +314,39 @@ export default function Evidencias() {
                           )}
                         </td>
                         <td style={{ padding: "14px", textAlign: "center" }}>
-                          <a
-                            href={file.downloadURL}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ marginRight: "12px", color: "#166534", textDecoration: "none" }}
-                          >
-                            📥 Descargar
-                          </a>
+                     <button
+  onClick={async () => {
+    try {
+      const response = await fetch(file.downloadURL);
+      const blob = await response.blob();
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = file.fileName;
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error al descargar:", error);
+      alert("Error al descargar archivo");
+    }
+  }}
+  style={{
+    marginRight: "12px",
+    color: "#166534",
+    background: "none",
+    border: "none",
+    cursor: "pointer"
+  }}
+>
+  📥 Descargar
+</button>
                           {isAdmin && (
                             <button
-                              onClick={() => deleteFile(file.id, file.storagePath)}
+                              onClick={() => deleteFile(file.storagePath, file.id)}
                               style={{ background: "#b91c1c", color: "white", border: "none", padding: "6px 12px", borderRadius: "6px", cursor: "pointer" }}
                             >
                               🗑️
@@ -308,4 +372,6 @@ export default function Evidencias() {
       )}
     </div>
   );
+
+
 }
