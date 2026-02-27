@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from "react";
 import InputSection from "./components/InputSection";
 import ResultTable from "./components/ResultTable";
 import EscriturasPendientes from "./components/EscriturasPendientes";
+import Evidencias from "./components/Evidencias";   // ← NUEVO
 
 import icontecLogo from './assets/icontec-iso9001.png';
 import iqnetLogo from './assets/iqnet.png';
@@ -157,6 +158,21 @@ function App() {
         >
           📁 Escrituras Pendientes Florencia
         </button>
+        <button
+    onClick={() => setActiveTab("evidencias")}
+    style={{
+      padding: "14px 28px",
+      margin: "0 8px",
+      fontSize: "1.15rem",
+      background: activeTab === "evidencias" ? "#166534" : "#e5e7eb",
+      color: activeTab === "evidencias" ? "white" : "#333",
+      border: "none",
+      borderRadius: "12px",
+      cursor: "pointer"
+    }}
+  >
+    📁 Evidencias
+  </button>
       </div>
 
       {/* PESTAÑA LIQUIDACIÓN */}
@@ -229,6 +245,8 @@ function App() {
       {activeTab === "escrituras" && (
         <EscriturasPendientes />
       )}
+      {/* NUEVA PESTAÑA EVIDENCIAS */}
+{activeTab === "evidencias" && <Evidencias />}
     </div>
   );
 }
