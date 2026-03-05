@@ -177,7 +177,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled }, ref) => {
                 <td>{row.acto}</td>
                 <td><textarea placeholder="Número de escritura" value={row.numeroEscritura} onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, numeroEscritura: e.target.value } : r))} /></td>
                 <td><input type="date" value={row.fechaEscritura} onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, fechaEscritura: e.target.value } : r))} /></td>
-                <td><input type="number" min="0" value={row.foliosAdicionales} disabled onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, foliosAdicionales: parseInt(e.target.value) || 0 } : r))} /></td>
+                <td><input type="number" min="0" value={row.foliosAdicionales} onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, foliosAdicionales: parseInt(e.target.value) || 0 } : r))} /></td>
                 
                 <td><input type="text" className="valor-acto" placeholder="Valor" value={row.valorActo} onChange={(e) => {
                   let raw = e.target.value.replace(/\./g, "");

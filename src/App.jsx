@@ -3,7 +3,7 @@ import { useState, useRef, useCallback } from "react";
 import InputSection from "./components/InputSection";
 import ResultTable from "./components/ResultTable";
 import EscriturasPendientes from "./components/EscriturasPendientes";
-import Evidencias from "./components/Evidencias";   // ← NUEVO
+import Evidencias from "./components/Evidencias";
 
 import icontecLogo from './assets/icontec-iso9001.png';
 import iqnetLogo from './assets/iqnet.png';
@@ -14,34 +14,45 @@ import officePhoto from './assets/office-photo.jpg';
 import { formatNumberWithPoints } from "./utils/formatters";
 import "./index.css";
 
+const TODAY = new Date().toISOString().split("T")[0];
+
+const COUNTS_INITIAL = {
+  compraventa: "",
+  certificado: "",
+  hipoteca: "",
+  saber: "",
+  igac: "",
+  donacion: "",
+  permuta: "",
+  sucesion: "",
+  sinCuantia: "",
+};
+
+const TAB_STYLE_BASE = {
+  padding: "14px 28px",
+  margin: "0 8px",
+  fontSize: "1.15rem",
+  border: "none",
+  borderRadius: "12px",
+  cursor: "pointer",
+};
+
+function tabStyle(active) {
+  return { ...TAB_STYLE_BASE, background: active ? "#166534" : "#e5e7eb", color: active ? "white" : "#333" };
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState("liquidacion");
-
   const [rows, setRows] = useState([]);
   const [hasInserted, setHasInserted] = useState(false);
-
-  const [compraventa, setCompraventa] = useState("");
-  const [certificado, setCertificado] = useState("");
-  const [hipoteca, setHipoteca] = useState("");
-  const [saber, setSaber] = useState("");
-  const [igac, setIgac] = useState("");
-  const [donacion, setDonacion] = useState("");
-  const [permuta, setPermuta] = useState("");
-  const [sucesion, setSucesion] = useState("");
-  const [sinCuantia, setSinCuantia] = useState("");
+  const [counts, setCounts] = useState(COUNTS_INITIAL);
   const [dineroEnviado, setDineroEnviado] = useState("");
 
   const resultRef = useRef();
 
-  const handleCompraventaChange = useCallback((e) => setCompraventa(e.target.value), []);
-  const handleCertificadoChange = useCallback((e) => setCertificado(e.target.value), []);
-  const handleHipotecaChange = useCallback((e) => setHipoteca(e.target.value), []);
-  const handleSaberChange = useCallback((e) => setSaber(e.target.value), []);
-  const handleIgacChange = useCallback((e) => setIgac(e.target.value), []);
-  const handleDonacionChange = useCallback((e) => setDonacion(e.target.value), []);
-  const handlePermutaChange = useCallback((e) => setPermuta(e.target.value), []);
-  const handleSucesionChange = useCallback((e) => setSucesion(e.target.value), []);
-  const handleSinCuantiaChange = useCallback((e) => setSinCuantia(e.target.value), []);
+  const handleCountChange = useCallback((field) => (e) => {
+    setCounts((prev) => ({ ...prev, [field]: e.target.value }));
+  }, []);
 
   const handleDineroChange = useCallback((e) => {
     const val = e.target.value.replace(/[^\d]/g, "");
@@ -49,27 +60,19 @@ function App() {
   }, []);
 
   const handleIngresar = useCallback(() => {
-    const counts = {
-      compraventa: parseInt(compraventa) || 0,
-      certificado: parseInt(certificado) || 0,
-      hipoteca: parseInt(hipoteca) || 0,
-      saber: parseInt(saber) || 0,
-      igac: parseInt(igac) || 0,
-      donacion: parseInt(donacion) || 0,
-      permuta: parseInt(permuta) || 0,
-      sucesion: parseInt(sucesion) || 0,
-      sinCuantia: parseInt(sinCuantia) || 0,
-    };
+    const parsed = Object.fromEntries(
+      Object.entries(counts).map(([k, v]) => [k, parseInt(v) || 0])
+    );
 
     const newRows = [];
     const add = (acto, count) => {
       for (let i = 0; i < count; i++) {
         newRows.push({
           acto,
-          numeroEscritura: '',
-          fechaEscritura: '2026-02-16',
+          numeroEscritura: "",
+          fechaEscritura: TODAY,
           foliosAdicionales: 0,
-          valorActo: '',
+          valorActo: "",
           tributaria: null,
           orip: null,
           total: null,
@@ -77,24 +80,22 @@ function App() {
       }
     };
 
-    add("COMPRAVENTA", counts.compraventa);
-    add("CERTIFICADO CANCELACIÓN HIPOTECA", counts.certificado);
-    add("HIPOTECA CON BANCO AGRARIO", counts.hipoteca);
-    add("ESCRITURA PARA SABER", counts.saber);
-    add("TRAMITE IGAC", counts.igac);
-    add("DONACIÓN", counts.donacion);
-    add("PERMUTA", counts.permuta);
-    add("SUCESIÓN", counts.sucesion);
-    add("ACTO SIN CUANTÍA", counts.sinCuantia);
+    add("COMPRAVENTA", parsed.compraventa);
+    add("CERTIFICADO CANCELACIÓN HIPOTECA", parsed.certificado);
+    add("HIPOTECA CON BANCO AGRARIO", parsed.hipoteca);
+    add("ESCRITURA PARA SABER", parsed.saber);
+    add("TRAMITE IGAC", parsed.igac);
+    add("DONACIÓN", parsed.donacion);
+    add("PERMUTA", parsed.permuta);
+    add("SUCESIÓN", parsed.sucesion);
+    add("ACTO SIN CUANTÍA", parsed.sinCuantia);
 
     setRows(newRows);
     setHasInserted(true);
-  }, [compraventa, certificado, hipoteca, saber, igac, donacion, permuta, sucesion, sinCuantia]);
+  }, [counts]);
 
   const handleLimpiar = useCallback(() => {
-    setCompraventa(""); setCertificado(""); setHipoteca("");
-    setSaber(""); setIgac(""); setDonacion("");
-    setPermuta(""); setSucesion(""); setSinCuantia("");
+    setCounts(COUNTS_INITIAL);
     setDineroEnviado("");
     setRows([]);
     setHasInserted(false);
@@ -128,66 +129,30 @@ function App() {
 
       {/* PESTAÑAS */}
       <div style={{ textAlign: "center", margin: "20px 0" }}>
-        <button
-          onClick={() => setActiveTab("liquidacion")}
-          style={{
-            padding: "14px 28px",
-            margin: "0 8px",
-            fontSize: "1.15rem",
-            background: activeTab === "liquidacion" ? "#166534" : "#e5e7eb",
-            color: activeTab === "liquidacion" ? "white" : "#333",
-            border: "none",
-            borderRadius: "12px",
-            cursor: "pointer"
-          }}
-        >
-          📋 Liquidación Notarial
+        <button onClick={() => setActiveTab("liquidacion")} style={tabStyle(activeTab === "liquidacion")}>
+          Liquidación Notarial
         </button>
-        <button
-          onClick={() => setActiveTab("escrituras")}
-          style={{
-            padding: "14px 28px",
-            margin: "0 8px",
-            fontSize: "1.15rem",
-            background: activeTab === "escrituras" ? "#166534" : "#e5e7eb",
-            color: activeTab === "escrituras" ? "white" : "#333",
-            border: "none",
-            borderRadius: "12px",
-            cursor: "pointer"
-          }}
-        >
-          📁 Escrituras Pendientes Florencia
+        <button onClick={() => setActiveTab("escrituras")} style={tabStyle(activeTab === "escrituras")}>
+          Escrituras Pendientes Florencia
         </button>
-        <button
-    onClick={() => setActiveTab("evidencias")}
-    style={{
-      padding: "14px 28px",
-      margin: "0 8px",
-      fontSize: "1.15rem",
-      background: activeTab === "evidencias" ? "#166534" : "#e5e7eb",
-      color: activeTab === "evidencias" ? "white" : "#333",
-      border: "none",
-      borderRadius: "12px",
-      cursor: "pointer"
-    }}
-  >
-    📁 Evidencias
-  </button>
+        <button onClick={() => setActiveTab("evidencias")} style={tabStyle(activeTab === "evidencias")}>
+          Evidencias
+        </button>
       </div>
 
       {/* PESTAÑA LIQUIDACIÓN */}
       {activeTab === "liquidacion" && (
         <>
           <InputSection
-            compraventa={compraventa} onCompraventaChange={handleCompraventaChange}
-            certificado={certificado} onCertificadoChange={handleCertificadoChange}
-            hipoteca={hipoteca} onHipotecaChange={handleHipotecaChange}
-            saber={saber} onSaberChange={handleSaberChange}
-            igac={igac} onIgacChange={handleIgacChange}
-            donacion={donacion} onDonacionChange={handleDonacionChange}
-            permuta={permuta} onPermutaChange={handlePermutaChange}
-            sucesion={sucesion} onSucesionChange={handleSucesionChange}
-            sinCuantia={sinCuantia} onSinCuantiaChange={handleSinCuantiaChange}
+            compraventa={counts.compraventa} onCompraventaChange={handleCountChange("compraventa")}
+            certificado={counts.certificado} onCertificadoChange={handleCountChange("certificado")}
+            hipoteca={counts.hipoteca} onHipotecaChange={handleCountChange("hipoteca")}
+            saber={counts.saber} onSaberChange={handleCountChange("saber")}
+            igac={counts.igac} onIgacChange={handleCountChange("igac")}
+            donacion={counts.donacion} onDonacionChange={handleCountChange("donacion")}
+            permuta={counts.permuta} onPermutaChange={handleCountChange("permuta")}
+            sucesion={counts.sucesion} onSucesionChange={handleCountChange("sucesion")}
+            sinCuantia={counts.sinCuantia} onSinCuantiaChange={handleCountChange("sinCuantia")}
             dineroEnviado={dineroEnviado} onDineroChange={handleDineroChange}
             onIngresar={handleIngresar}
             onCalcular={handleCalcular}
@@ -242,11 +207,10 @@ function App() {
       )}
 
       {/* PESTAÑA ESCRITURAS */}
-      {activeTab === "escrituras" && (
-        <EscriturasPendientes />
-      )}
-      {/* NUEVA PESTAÑA EVIDENCIAS */}
-{activeTab === "evidencias" && <Evidencias />}
+      {activeTab === "escrituras" && <EscriturasPendientes />}
+
+      {/* PESTAÑA EVIDENCIAS */}
+      {activeTab === "evidencias" && <Evidencias />}
     </div>
   );
 }

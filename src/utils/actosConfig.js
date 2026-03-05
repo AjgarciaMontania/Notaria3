@@ -25,8 +25,7 @@ export const ACTOS_CONFIG = {
     oripTipo: "none",
     honorarioContable: false,
   },
-  // ==================== NUEVOS ACTOS ====================
-  /*"DONACIÓN": {
+  "DONACIÓN": {
     tributariaRate: 0,
     oripTipo: "cuantia",
     oripExtras: 0,
@@ -47,5 +46,5 @@ export const ACTOS_CONFIG = {
     tributariaRate: 0,
     oripTipo: "sin_cuantia",
     honorarioContable: false,
-  },*/
+  },
 };

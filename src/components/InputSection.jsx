@@ -43,17 +43,29 @@ export default function InputSection({
           </div>
         </div>
 
-        {/* Fila 3 y 4 - Descomenta cuando quieras usarlos */}
-        {/* 
+        {/* Fila 3 */}
         <div className="input-row three-columns">
-          <div className="input-group"><label>Donación:</label><input type="number" value={donacion} onChange={onDonacionChange} min="0" /></div>
-          <div className="input-group"><label>Permuta:</label><input type="number" value={permuta} onChange={onPermutaChange} min="0" /></div>
-          <div className="input-group"><label>Sucesión:</label><input type="number" value={sucesion} onChange={onSucesionChange} min="0" /></div>
+          <div className="input-group">
+            <label>Donación:</label>
+            <input type="number" placeholder="Cantidad" value={donacion} onChange={onDonacionChange} min="0" />
+          </div>
+          <div className="input-group">
+            <label>Permuta:</label>
+            <input type="number" placeholder="Cantidad" value={permuta} onChange={onPermutaChange} min="0" />
+          </div>
+          <div className="input-group">
+            <label>Sucesión:</label>
+            <input type="number" placeholder="Cantidad" value={sucesion} onChange={onSucesionChange} min="0" />
+          </div>
         </div>
+
+        {/* Fila 4 */}
         <div className="input-row two-columns">
-          <div className="input-group"><label>Acto sin cuantía (poder, PH, etc.):</label><input type="number" value={sinCuantia} onChange={onSinCuantiaChange} min="0" /></div>
+          <div className="input-group">
+            <label>Acto sin cuantía (poder, PH, etc.):</label>
+            <input type="number" placeholder="Cantidad" value={sinCuantia} onChange={onSinCuantiaChange} min="0" />
+          </div>
         </div>
-        */}
 
         {/* DINERO ENVIADO */}
         <div className="dinero-group">

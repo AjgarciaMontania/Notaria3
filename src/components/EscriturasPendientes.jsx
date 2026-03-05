@@ -110,9 +110,7 @@ export default function EscriturasPendientes() {
     if (!window.confirm("¿Estás seguro de borrar TODA la base de datos?")) return;
     try {
       const querySnapshot = await getDocs(collection(db, "escrituras"));
-      querySnapshot.forEach(async (d) => {
-        await deleteDoc(doc(db, "escrituras", d.id));
-      });
+      await Promise.all(querySnapshot.docs.map((d) => deleteDoc(doc(db, "escrituras", d.id))));
       // onSnapshot actualizará la lista a vacío automáticamente
     } catch (error) {
       console.error("Error al limpiar:", error);

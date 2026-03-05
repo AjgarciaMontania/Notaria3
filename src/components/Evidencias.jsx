@@ -131,24 +131,6 @@ async function deleteFile(storagePath, docId) {
     }
   };
 
- async function uploadFile(file) {
-  try {
-    const storagePath = `evidencias/${currentFolder.name}/${file.name}`;
-    const storageRef = ref(storage, storagePath);
-
-    // 🔥 Subir archivo binario real
-    await uploadBytes(storageRef, file, {
-      contentType: file.type
-    });
-
-    const downloadURL = await getDownloadURL(storageRef);
-
-    console.log("Archivo subido correctamente");
-  } catch (error) {
-    console.error("Error al subir:", error);
-  }
-}
-
   const filesInCurrentFolder = files.filter(f => f.folder === currentFolder?.name);
 
   return (
