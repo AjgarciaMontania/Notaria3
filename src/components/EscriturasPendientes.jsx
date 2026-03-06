@@ -2,16 +2,12 @@
 import { useState, useEffect } from "react";
 import * as XLSX from 'xlsx';
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase";  // Asegúrate de que este archivo exista
+import { db } from "../firebase";
 
-const ADMIN_PASSWORD = "notaria2026"; // ← CAMBIA ESTA CONTRASEÑA
-
-      // Función auxiliar para convertir fecha de Excel a string "YYYY-MM-DD"
+// Función auxiliar para convertir fecha de Excel a string "YYYY-MM-DD"
 const excelDateToString = (value) => {
   if (!value) return "";
-  // Si ya es string (ej: "2024-03-15"), lo devuelve tal cual
   if (typeof value === "string") return value;
-  // Si es número, lo convierte desde el formato serial de Excel
   if (typeof value === "number") {
     const date = XLSX.SSF.parse_date_code(value);
     if (!date) return "";
@@ -23,10 +19,8 @@ const excelDateToString = (value) => {
   return "";
 };
 
-export default function EscriturasPendientes() {
+export default function EscriturasPendientes({ isAdmin }) {
   const [escrituras, setEscrituras] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [password, setPassword] = useState("");
   const [newEntry, setNewEntry] = useState({
     acto: "",
     numeroEscritura: "",
@@ -35,21 +29,17 @@ export default function EscriturasPendientes() {
     notaDevolutiva: "NO",
     motivo: "",
   });
-  const [editingItem, setEditingItem] = useState(null); // Para modo edición
+  const [editingItem, setEditingItem] = useState(null);
 
   useEffect(() => {
-    // Escucha cambios en tiempo real en la colección 'escrituras'
     const unsubscribe = onSnapshot(collection(db, "escrituras"), (querySnapshot) => {
       let data = [];
       querySnapshot.forEach((doc) => {
         data.push({ id: doc.id, ...doc.data() });
       });
-      // Ordena por item ascendente
       data.sort((a, b) => a.item - b.item);
       setEscrituras(data);
     });
-
-    // Limpia la suscripción al desmontar el componente
     return () => unsubscribe();
   }, []);
 
@@ -58,17 +48,14 @@ export default function EscriturasPendientes() {
       alert("Acto y Número de Escritura son obligatorios");
       return;
     }
-
     try {
       if (editingItem) {
-        // Modo edición: actualiza el documento existente
         await updateDoc(doc(db, "escrituras", editingItem.id), newEntry);
         alert("Registro actualizado exitosamente");
       } else {
-        // Modo agregar: calcula el próximo item
         const querySnapshot = await getDocs(collection(db, "escrituras"));
-        const maxItem = querySnapshot.docs.length > 0 
-          ? Math.max(...querySnapshot.docs.map(d => d.data().item || 0)) 
+        const maxItem = querySnapshot.docs.length > 0
+          ? Math.max(...querySnapshot.docs.map(d => d.data().item || 0))
           : 0;
         const newItem = { item: maxItem + 1, ...newEntry };
         await addDoc(collection(db, "escrituras"), newItem);
@@ -76,7 +63,6 @@ export default function EscriturasPendientes() {
       }
       setNewEntry({ acto: "", numeroEscritura: "", fechaEscritura: "", matricula: "", notaDevolutiva: "NO", motivo: "" });
       setEditingItem(null);
-      // No necesitas refrescar manualmente; onSnapshot lo hace automáticamente
     } catch (error) {
       console.error("Error al guardar:", error);
       alert("Error al guardar el registro");
@@ -99,7 +85,6 @@ export default function EscriturasPendientes() {
     if (!window.confirm("¿Estás seguro de eliminar este registro?")) return;
     try {
       await deleteDoc(doc(db, "escrituras", id));
-      // No necesitas refrescar; onSnapshot lo hace
     } catch (error) {
       console.error("Error al eliminar:", error);
       alert("Error al eliminar el registro");
@@ -111,7 +96,6 @@ export default function EscriturasPendientes() {
     try {
       const querySnapshot = await getDocs(collection(db, "escrituras"));
       await Promise.all(querySnapshot.docs.map((d) => deleteDoc(doc(db, "escrituras", d.id))));
-      // onSnapshot actualizará la lista a vacío automáticamente
     } catch (error) {
       console.error("Error al limpiar:", error);
       alert("Error al limpiar la base");
@@ -128,98 +112,74 @@ export default function EscriturasPendientes() {
       "NOTA DEVOLUTIVA": r.notaDevolutiva,
       MOTIVO: r.motivo || "",
     }));
-
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Escrituras Pendientes");
-    XLSX.writeFile(wb, `RELACION_ESCRITURAS_PENDIENTES_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `RELACION_ESCRITURAS_PENDIENTES_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-const handleImportExcel = (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+  const handleImportExcel = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const bstr = evt.target.result;
+      const wb = XLSX.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-  const reader = new FileReader();
-  reader.onload = async (evt) => {
-    const bstr = evt.target.result;
-    const wb = XLSX.read(bstr, { type: 'binary' });
-    const wsname = wb.SheetNames[0];
-    const ws = wb.Sheets[wsname];
-    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      const querySnapshot = await getDocs(collection(db, "escrituras"));
+      const maxItem = querySnapshot.docs.length > 0
+        ? Math.max(...querySnapshot.docs.map(d => d.data().item || 0))
+        : 0;
 
-    // ✅ Obtener el máximo item actual ANTES de importar
-    const querySnapshot = await getDocs(collection(db, "escrituras"));
-    const maxItem = querySnapshot.docs.length > 0
-      ? Math.max(...querySnapshot.docs.map(d => d.data().item || 0))
-      : 0;
-
-    let contador = 1;
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      // ✅ Permite filas con al menos 3 columnas (acto + escritura mínimo)
-      if (!row || row.length < 2) continue;
-
-      const newItem = {
-        item: maxItem + contador, // ✅ Item correcto y secuencial
-        acto: row[1] ? String(row[1]) : "",
-        numeroEscritura: row[2] ? String(row[2]) : "",
-        fechaEscritura: excelDateToString(row[3]), // ✅ Convierte el número serial de Excel a fecha legible
-        matricula: row[4] ? String(row[4]) : "",
-        notaDevolutiva: row[5] ? String(row[5]) : "NO",
-        motivo: row[6] ? String(row[6]) : "",
-      };
-
-
-
-
-      await addDoc(collection(db, "escrituras"), newItem);
-      contador++;
-   
-
-   
-    }
-    alert("Importación completada.");
-    e.target.value = ""; // ✅ Limpia el input para permitir reimportar el mismo archivo
+      let contador = 1;
+      for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        if (!row || row.length < 2) continue;
+        const newItem = {
+          item: maxItem + contador,
+          acto: row[1] ? String(row[1]) : "",
+          numeroEscritura: row[2] ? String(row[2]) : "",
+          fechaEscritura: excelDateToString(row[3]),
+          matricula: row[4] ? String(row[4]) : "",
+          notaDevolutiva: row[5] ? String(row[5]) : "NO",
+          motivo: row[6] ? String(row[6]) : "",
+        };
+        await addDoc(collection(db, "escrituras"), newItem);
+        contador++;
+      }
+      alert("Importación completada.");
+      e.target.value = "";
+    };
+    reader.readAsBinaryString(file);
   };
-  reader.readAsBinaryString(file);
-};
 
   return (
     <div className="input-card" style={{ maxWidth: "1200px", margin: "2rem auto", padding: "2.5rem", background: "white", borderRadius: "16px", boxShadow: "0 10px 30px rgba(0,0,0,0.08)", border: "1px solid #e5e7eb" }}>
-      <h2 style={{ textAlign: "center", color: "#166534", fontSize: "1.8rem", marginBottom: "2rem", textTransform: "uppercase" }}>Escrituras Pendientes Florencia</h2>
+      <h2 style={{ textAlign: "center", color: "#166534", fontSize: "1.8rem", marginBottom: "2rem", textTransform: "uppercase" }}>
+        Escrituras Pendientes Florencia
+      </h2>
 
-      {/* ADMIN LOGIN */}
-      {!isAdmin ? (
-        <div style={{ maxWidth: "400px", margin: "0 auto 2rem", padding: "1.5rem", background: "#f3f4f6", borderRadius: "12px" }}>
-          <label style={{ display: "block", fontWeight: "bold", marginBottom: "0.5rem" }}>Contraseña Admin:</label>
-          <input 
-            type="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            style={{ width: "100%", padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px", marginBottom: "1rem" }} 
-          />
-          <button 
-            onClick={() => { if (password === ADMIN_PASSWORD) setIsAdmin(true); else alert("Contraseña incorrecta"); }} 
-            style={{ width: "100%", padding: "12px", background: "#166534", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}
-          >
-            Ingresar como Admin
-          </button>
-        </div>
-      ) : (
+      {/* PANEL ADMIN (solo visible cuando isAdmin=true) */}
+      {isAdmin && (
         <div style={{ marginBottom: "2.5rem" }}>
-          {/* FORMULARIO AGREGAR/EDITAR */}
-          <h3 style={{ color: "#166534", marginBottom: "1rem" }}>{editingItem ? "Editar Escritura" : "Agregar Nueva Escritura"}</h3>
+          <h3 style={{ color: "#166534", marginBottom: "1rem" }}>
+            {editingItem ? "Editar Escritura" : "Agregar Nueva Escritura"}
+          </h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-            <input type="text" placeholder="Acto" value={newEntry.acto} onChange={(e) => setNewEntry({...newEntry, acto: e.target.value})} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
-            <input type="text" placeholder="N° Escritura" value={newEntry.numeroEscritura} onChange={(e) => setNewEntry({...newEntry, numeroEscritura: e.target.value})} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
-            <input type="date" value={newEntry.fechaEscritura} onChange={(e) => setNewEntry({...newEntry, fechaEscritura: e.target.value})} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px", width: "100%" }} /> {/* Campo fecha más ancho */}
-            <input type="text" placeholder="Matrícula" value={newEntry.matricula} onChange={(e) => setNewEntry({...newEntry, matricula: e.target.value})} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
-            <select value={newEntry.notaDevolutiva} onChange={(e) => setNewEntry({...newEntry, notaDevolutiva: e.target.value})} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }}>
+            <input type="text" placeholder="Acto" value={newEntry.acto} onChange={(e) => setNewEntry({ ...newEntry, acto: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
+            <input type="text" placeholder="N° Escritura" value={newEntry.numeroEscritura} onChange={(e) => setNewEntry({ ...newEntry, numeroEscritura: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
+            <input type="date" value={newEntry.fechaEscritura} onChange={(e) => setNewEntry({ ...newEntry, fechaEscritura: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px", width: "100%" }} />
+            <input type="text" placeholder="Matrícula" value={newEntry.matricula} onChange={(e) => setNewEntry({ ...newEntry, matricula: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
+            <select value={newEntry.notaDevolutiva} onChange={(e) => setNewEntry({ ...newEntry, notaDevolutiva: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }}>
               <option value="NO">NO</option>
               <option value="SI">SI</option>
             </select>
-            <input type="text" placeholder="Motivo (opcional)" value={newEntry.motivo} onChange={(e) => setNewEntry({...newEntry, motivo: e.target.value})} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
+            <input type="text" placeholder="Motivo (opcional)" value={newEntry.motivo} onChange={(e) => setNewEntry({ ...newEntry, motivo: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
           </div>
+
           <button onClick={addOrUpdateEntry} style={{ padding: "12px 24px", background: "#166534", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", marginRight: "1rem" }}>
             {editingItem ? "Guardar Cambios" : "Agregar"}
           </button>
@@ -229,14 +189,14 @@ const handleImportExcel = (e) => {
             </button>
           )}
 
-          {/* BOTONES ADMIN */}
-          <button onClick={exportToExcel} style={{ padding: "12px 24px", background: "#6b21a8", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", margin: "1rem 1rem 0 0" }}>📥 Exportar Excel</button>
-          <label style={{ display: "inline-block", padding: "12px 24px", background: "#d97706", color: "white", borderRadius: "8px", cursor: "pointer", margin: "1rem 1rem 0 0" }}>
-            📤 Importar Excel
-            <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} style={{ display: "none" }} />
-          </label>
-          <button onClick={clearAll} style={{ padding: "12px 24px", background: "#b91c1c", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", margin: "1rem 1rem 0 0" }}>🗑️ Borrar toda la base</button>
-          <button onClick={() => { setIsAdmin(false); setPassword(""); }} style={{ padding: "12px 24px", background: "#6b7280", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", margin: "1rem 0 0 0" }}>Cerrar sesión Admin</button>
+          <div style={{ marginTop: "1rem", display: "flex", flexWrap: "wrap", gap: "1rem" }}>
+            <button onClick={exportToExcel} style={{ padding: "12px 24px", background: "#6b21a8", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}>📥 Exportar Excel</button>
+            <label style={{ display: "inline-block", padding: "12px 24px", background: "#d97706", color: "white", borderRadius: "8px", cursor: "pointer" }}>
+              📤 Importar Excel
+              <input type="file" accept=".xlsx, .xls" onChange={handleImportExcel} style={{ display: "none" }} />
+            </label>
+            <button onClick={clearAll} style={{ padding: "12px 24px", background: "#b91c1c", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}>🗑️ Borrar toda la base</button>
+          </div>
         </div>
       )}
 
@@ -281,7 +241,7 @@ const handleImportExcel = (e) => {
 
       {escrituras.length === 0 && (
         <p style={{ textAlign: "center", padding: "40px 20px", color: "#6b7280", fontSize: "1.2rem" }}>
-          No hay registros aún. Agrega manualmente o importa un Excel.
+          No hay registros aún.{isAdmin ? " Agrega manualmente o importa un Excel." : ""}
         </p>
       )}
     </div>

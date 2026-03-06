@@ -1,22 +1,10 @@
+// src/components/Evidencias.jsx
 import { useState, useEffect } from "react";
 import { collection, addDoc, onSnapshot, deleteDoc, doc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "../firebase";
 
-
-
-
-const ADMIN_PASSWORD = "notaria2026";
-
-
-
-
-
-
-
-export default function Evidencias() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [password, setPassword] = useState("");
+export default function Evidencias({ isAdmin }) {
   const [folders, setFolders] = useState([]);
   const [files, setFiles] = useState([]);
   const [currentFolder, setCurrentFolder] = useState(null);
@@ -46,7 +34,6 @@ export default function Evidencias() {
     if (!newFolderName.trim()) return alert("Ingresa un nombre de carpeta");
     const exists = folders.some(f => f.name.toLowerCase() === newFolderName.trim().toLowerCase());
     if (exists) return alert("Esa carpeta ya existe");
-
     try {
       await addDoc(collection(db, "folders"), {
         name: newFolderName.trim(),
@@ -69,10 +56,9 @@ export default function Evidencias() {
       for (const file of selectedFiles) {
         const storageRef = ref(storage, `evidencias/${currentFolder.name}/${file.name}`);
         await uploadBytes(storageRef, file, {
-  contentType: file.type || "application/octet-stream"
-});
+          contentType: file.type || "application/octet-stream"
+        });
         const downloadURL = await getDownloadURL(storageRef);
-
         await addDoc(collection(db, "files"), {
           folder: currentFolder.name,
           fileName: file.name,
@@ -93,35 +79,27 @@ export default function Evidencias() {
     }
   };
 
-
-async function deleteFile(storagePath, docId) {
-  try {
-    // 1️⃣ Eliminar de Firebase Storage
-    const fileRef = ref(storage, storagePath);
-    await deleteObject(fileRef);
-
-    // 2️⃣ Eliminar documento de Firestore
-    await deleteDoc(doc(db, "files", docId));
-
-    alert("Archivo eliminado correctamente");
-  } catch (error) {
-    console.error("Error al eliminar:", error);
-
-    if (error.code === "storage/object-not-found") {
-      // Si ya no existe en storage, al menos elimina el documento
+  const deleteFile = async (storagePath, docId) => {
+    try {
+      const fileRef = ref(storage, storagePath);
+      await deleteObject(fileRef);
       await deleteDoc(doc(db, "files", docId));
-      alert("El archivo ya no existía en Storage, pero se limpió la base de datos.");
-    } else {
-      alert("Error al eliminar: " + error.message);
+      alert("Archivo eliminado correctamente");
+    } catch (error) {
+      console.error("Error al eliminar:", error);
+      if (error.code === "storage/object-not-found") {
+        await deleteDoc(doc(db, "files", docId));
+        alert("El archivo ya no existía en Storage, pero se limpió la base de datos.");
+      } else {
+        alert("Error al eliminar: " + error.message);
+      }
     }
-  }
-}
+  };
 
   const deleteFolder = async () => {
     const filesInFolder = files.filter(f => f.folder === currentFolder.name);
     if (filesInFolder.length > 0) return alert("No se puede eliminar una carpeta que contiene archivos");
     if (!window.confirm(`¿Eliminar la carpeta "${currentFolder.name}"?`)) return;
-
     try {
       await deleteDoc(doc(db, "folders", currentFolder.id));
       setCurrentFolder(null);
@@ -139,34 +117,6 @@ async function deleteFile(storagePath, docId) {
         📁 EVIDENCIAS NOTARIALES
       </h2>
 
-      {/* LOGIN ADMIN */}
-      {!isAdmin ? (
-        <div style={{ maxWidth: "400px", margin: "0 auto 3rem", padding: "2rem", background: "#f3f4f6", borderRadius: "12px" }}>
-          <label style={{ display: "block", fontWeight: "bold", marginBottom: "0.5rem" }}>Contraseña Admin:</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ width: "100%", padding: "12px", fontSize: "1rem", borderRadius: "8px", marginBottom: "1rem" }}
-          />
-          <button
-            onClick={() => password === ADMIN_PASSWORD ? setIsAdmin(true) : alert("Contraseña incorrecta")}
-            style={{ width: "100%", padding: "12px", background: "#166534", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}
-          >
-            Ingresar como Admin
-          </button>
-        </div>
-      ) : (
-        <div style={{ marginBottom: "2rem", textAlign: "center" }}>
-          <button
-            onClick={() => { setIsAdmin(false); setPassword(""); }}
-            style={{ padding: "10px 20px", background: "#6b7280", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}
-          >
-            Cerrar sesión Admin
-          </button>
-        </div>
-      )}
-
       {/* CREAR CARPETA (solo admin) */}
       {isAdmin && (
         <div style={{ marginBottom: "2rem", display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
@@ -177,7 +127,7 @@ async function deleteFile(storagePath, docId) {
             onChange={(e) => setNewFolderName(e.target.value)}
             style={{ padding: "12px", width: "320px", borderRadius: "8px", border: "1px solid #ddd" }}
           />
-          <button onClick={createFolder} style={{ padding: "12px 24px", background: "#166534", color: "white", border: "none", borderRadius: "8px" }}>
+          <button onClick={createFolder} style={{ padding: "12px 24px", background: "#166534", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}>
             ➕ Crear Carpeta
           </button>
         </div>
@@ -186,7 +136,9 @@ async function deleteFile(storagePath, docId) {
       {/* LISTADO DE CARPETAS */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", justifyContent: "center", marginBottom: "3rem" }}>
         {folders.length === 0 ? (
-          <p style={{ color: "#666", fontStyle: "italic" }}>Aún no hay carpetas. Crea la primera.</p>
+          <p style={{ color: "#666", fontStyle: "italic" }}>
+            {isAdmin ? "Aún no hay carpetas. Crea la primera." : "Aún no hay carpetas disponibles."}
+          </p>
         ) : (
           folders.map(folder => (
             <button
@@ -214,42 +166,40 @@ async function deleteFile(storagePath, docId) {
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
             <h3 style={{ margin: 0, color: "#166534" }}>📁 {currentFolder.name}</h3>
-            <div>
-              {isAdmin && (
-                <>
-                  <label
-                    style={{
-                      display: "inline-block",
-                      padding: "12px 28px",
-                      background: "#d97706",
-                      color: "white",
-                      borderRadius: "9999px",
-                      cursor: "pointer",
-                      marginRight: "1rem"
-                    }}
-                  >
-                    📤 Subir Archivos
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                      onChange={handleUpload}
-                      disabled={uploading}
-                      style={{ display: "none" }}
-                    />
-                  </label>
+            {isAdmin && (
+              <div>
+                <label
+                  style={{
+                    display: "inline-block",
+                    padding: "12px 28px",
+                    background: uploading ? "#9ca3af" : "#d97706",
+                    color: "white",
+                    borderRadius: "9999px",
+                    cursor: uploading ? "not-allowed" : "pointer",
+                    marginRight: "1rem"
+                  }}
+                >
+                  {uploading ? "⏳ Subiendo..." : "📤 Subir Archivos"}
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    onChange={handleUpload}
+                    disabled={uploading}
+                    style={{ display: "none" }}
+                  />
+                </label>
 
-                  {filesInCurrentFolder.length === 0 && (
-                    <button
-                      onClick={deleteFolder}
-                      style={{ padding: "12px 24px", background: "#b91c1c", color: "white", border: "none", borderRadius: "9999px" }}
-                    >
-                      🗑️ Eliminar Carpeta
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
+                {filesInCurrentFolder.length === 0 && (
+                  <button
+                    onClick={deleteFolder}
+                    style={{ padding: "12px 24px", background: "#b91c1c", color: "white", border: "none", borderRadius: "9999px", cursor: "pointer" }}
+                  >
+                    🗑️ Eliminar Carpeta
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {filesInCurrentFolder.length === 0 ? (
@@ -296,36 +246,28 @@ async function deleteFile(storagePath, docId) {
                           )}
                         </td>
                         <td style={{ padding: "14px", textAlign: "center" }}>
-                     <button
-  onClick={async () => {
-    try {
-      const response = await fetch(file.downloadURL);
-      const blob = await response.blob();
-
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = file.fileName;
-      document.body.appendChild(link);
-      link.click();
-
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Error al descargar:", error);
-      alert("Error al descargar archivo");
-    }
-  }}
-  style={{
-    marginRight: "12px",
-    color: "#166534",
-    background: "none",
-    border: "none",
-    cursor: "pointer"
-  }}
->
-  📥 Descargar
-</button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(file.downloadURL);
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                const link = document.createElement("a");
+                                link.href = url;
+                                link.download = file.fileName;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                window.URL.revokeObjectURL(url);
+                              } catch (error) {
+                                console.error("Error al descargar:", error);
+                                alert("Error al descargar archivo");
+                              }
+                            }}
+                            style={{ marginRight: "12px", color: "#166534", background: "none", border: "none", cursor: "pointer" }}
+                          >
+                            📥 Descargar
+                          </button>
                           {isAdmin && (
                             <button
                               onClick={() => deleteFile(file.storagePath, file.id)}
@@ -345,7 +287,7 @@ async function deleteFile(storagePath, docId) {
           <div style={{ textAlign: "center", marginTop: "2rem" }}>
             <button
               onClick={() => setCurrentFolder(null)}
-              style={{ padding: "12px 32px", background: "#6b7280", color: "white", border: "none", borderRadius: "9999px" }}
+              style={{ padding: "12px 32px", background: "#6b7280", color: "white", border: "none", borderRadius: "9999px", cursor: "pointer" }}
             >
               ← Volver a todas las carpetas
             </button>
@@ -354,6 +296,4 @@ async function deleteFile(storagePath, docId) {
       )}
     </div>
   );
-
-
 }

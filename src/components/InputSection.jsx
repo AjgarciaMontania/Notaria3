@@ -10,6 +10,7 @@ export default function InputSection({
   sucesion, onSucesionChange,
   sinCuantia, onSinCuantiaChange,
   dineroEnviado, onDineroChange,
+  fechaPago, onFechaPagoChange,
   onIngresar, onCalcular, onLimpiar, onExportar, calcularDisabled
 }) {
   return (
@@ -67,10 +68,27 @@ export default function InputSection({
           </div>
         </div>
 
-        {/* DINERO ENVIADO */}
-        <div className="dinero-group">
-          <label>DINERO ENVIADO:</label>
-          <input type="text" placeholder="Ingrese el monto enviado" value={dineroEnviado} onChange={onDineroChange} />
+        {/* DINERO ENVIADO + FECHA DE PAGO */}
+        <div className="input-row two-columns" style={{ alignItems: "flex-end" }}>
+          <div className="dinero-group" style={{ flex: 2 }}>
+            <label>DINERO ENVIADO:</label>
+            <input type="text" placeholder="Ingrese el monto enviado" value={dineroEnviado} onChange={onDineroChange} />
+          </div>
+          <div className="input-group" style={{ flex: 1 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              📅 FECHA DE PAGO/REGISTRO ORIP:
+              <span
+                title="Si la escritura se paga después de 60 días de otorgada, la Gobernación del Caquetá cobra intereses de mora (~22.13% anual simple). Esta fecha se usa para calcularlos automáticamente."
+                style={{ cursor: "help", background: "#166534", color: "white", borderRadius: "50%", width: "18px", height: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: "bold", flexShrink: 0 }}
+              >?</span>
+            </label>
+            <input
+              type="date"
+              value={fechaPago}
+              onChange={onFechaPagoChange}
+              style={{ padding: "10px", fontSize: "1rem", border: "1px solid #d1d5db", borderRadius: "8px", width: "100%" }}
+            />
+          </div>
         </div>
       </div>
 

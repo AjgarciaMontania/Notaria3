@@ -9,7 +9,7 @@ export const ACTOS_CONFIG = {
   "HIPOTECA CON BANCO AGRARIO": {
     tributariaRate: 0.005,
     oripTipo: "cuantia",
-    oripExtras: 24300 + 17000, // Certificado Tradición + Reproducción Doc
+    oripExtras: 24300 + 17300, // Certificado Tradición ($24.300) + Constancia Inscripción ($17.300) — RES-2026-001726-6
     honorarioContable: true,
   },
   "CERTIFICADO CANCELACIÓN HIPOTECA": {
