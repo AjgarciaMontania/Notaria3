@@ -1,0 +1,50 @@
+// Sesión con Firebase Authentication: cada persona entra con su propia cuenta.
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
+import { auth } from '../firebase';
+
+// Firebase devuelve códigos en inglés; aquí se traducen.
+const MENSAJES = {
+  'auth/invalid-email': 'El correo no tiene un formato válido.',
+  'auth/user-disabled': 'Esta cuenta está deshabilitada. Avisa al administrador.',
+  'auth/user-not-found': 'No existe una cuenta con ese correo.',
+  'auth/wrong-password': 'Contraseña incorrecta.',
+  'auth/invalid-credential': 'Correo o contraseña incorrectos.',
+  'auth/missing-password': 'Escribe la contraseña.',
+  'auth/too-many-requests':
+    'Demasiados intentos fallidos. Espera unos minutos antes de reintentar.',
+  'auth/network-request-failed': 'Sin conexión. Revisa los datos o el wifi.',
+  'auth/operation-not-allowed':
+    'El acceso por correo y contraseña no está habilitado en Firebase.',
+};
+
+export function traducirError(fallo) {
+  return MENSAJES[fallo?.code] || 'No se pudo iniciar sesión. Intenta de nuevo.';
+}
+
+/** Avisa cada vez que cambia la sesión (entrar, salir, o sesión recordada). */
+export function alCambiarSesion(callback) {
+  return onAuthStateChanged(auth, callback);
+}
+
+export async function iniciarSesion(correo, clave) {
+  // En el celular la sesión se recuerda entre aperturas de la app: sería
+  // insufrible escribir correo y contraseña cada vez. El cierre por
+  // inactividad sigue vigente.
+  await signInWithEmailAndPassword(auth, correo.trim(), clave);
+}
+
+export async function cerrarSesion() {
+  try {
+    await signOut(auth);
+  } catch (fallo) {
+    console.error('Error al cerrar sesión', fallo);
+  }
+}
+
+export function usuarioActual() {
+  return auth.currentUser;
+}

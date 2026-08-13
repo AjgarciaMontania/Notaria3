@@ -1,19 +1,30 @@
 import { useState } from 'react';
-import { CLAVE_ACCESO, NOMBRE_NOTARIA } from '../config.js';
+import { NOMBRE_NOTARIA } from '../config.js';
+import { iniciarSesion, traducirError } from '../lib/sesion.js';
 
-export default function Login({ onEntrar }) {
+export default function Login() {
+  const [correo, setCorreo] = useState('');
   const [clave, setClave] = useState('');
-  const [error, setError] = useState('');
   const [verClave, setVerClave] = useState(false);
+  const [error, setError] = useState('');
+  const [entrando, setEntrando] = useState(false);
 
-  const intentar = (e) => {
+  const intentar = async (e) => {
     e.preventDefault();
-    if (clave === CLAVE_ACCESO) {
-      setError('');
-      onEntrar();
-    } else {
-      setError('Clave incorrecta. Verifica e intenta de nuevo.');
+    if (!correo.trim() || !clave) {
+      setError('Escribe tu correo y tu contraseña.');
+      return;
+    }
+    setEntrando(true);
+    setError('');
+    try {
+      await iniciarSesion(correo, clave);
+      // No hace falta avisar a nadie: App.jsx escucha el cambio de sesión.
+    } catch (fallo) {
+      setError(traducirError(fallo));
       setClave('');
+    } finally {
+      setEntrando(false);
     }
   };
 
@@ -25,25 +36,40 @@ export default function Login({ onEntrar }) {
         <p className="login-notaria">{NOMBRE_NOTARIA}</p>
 
         <form onSubmit={intentar}>
-          <label htmlFor="clave">Clave de acceso</label>
+          <label htmlFor="correo">Correo</label>
+          <input
+            id="correo"
+            type="email"
+            inputMode="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="username"
+            value={correo}
+            onChange={(e) => {
+              setCorreo(e.target.value);
+              setError('');
+            }}
+            placeholder="nombre@notaria.gov.co"
+          />
+
+          <label htmlFor="clave">Contraseña</label>
           <div className="campo-clave">
             <input
               id="clave"
               type={verClave ? 'text' : 'password'}
+              autoComplete="current-password"
               value={clave}
               onChange={(e) => {
                 setClave(e.target.value);
                 setError('');
               }}
-              placeholder="Ingresa la clave"
-              autoComplete="current-password"
-              autoFocus
+              placeholder="Tu contraseña"
             />
             <button
               type="button"
               className="ojo"
               onClick={() => setVerClave((v) => !v)}
-              aria-label={verClave ? 'Ocultar clave' : 'Mostrar clave'}
+              aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
             >
               {verClave ? '🙈' : '👁️'}
             </button>
@@ -51,14 +77,14 @@ export default function Login({ onEntrar }) {
 
           {error && <p className="error">{error}</p>}
 
-          <button type="submit" className="boton principal ancho">
-            Entrar
+          <button type="submit" className="boton principal ancho" disabled={entrando}>
+            {entrando ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
 
         <p className="login-pie">
-          Los documentos que subas aquí aparecen de inmediato en el módulo de
-          Evidencias de la página web.
+          Usa la cuenta que te asignó la notaría. Los documentos que subas
+          aparecen de inmediato en el módulo de Evidencias de la página web.
         </p>
       </div>
     </div>

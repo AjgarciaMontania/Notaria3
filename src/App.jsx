@@ -7,6 +7,7 @@ import EscriturasPendientes from "./components/EscriturasPendientes";
 import Evidencias from "./components/Evidencias";
 import TasaMoraPanel from "./components/TasaMoraPanel";
 import { useTasaMora } from "./hooks/useTasaMora";
+import { useAuth } from "./hooks/useAuth";
 
 import icontecLogo from './assets/icontec-iso9001.png';
 import iqnetLogo from './assets/iqnet.png';
@@ -18,7 +19,6 @@ import { formatNumberWithPoints } from "./utils/formatters";
 import "./index.css";
 
 const TODAY = new Date().toISOString().split("T")[0];
-const ADMIN_PASSWORD = "notaria2026";
 const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
 
 const COUNTS_INITIAL = {
@@ -56,9 +56,12 @@ function App() {
   const [dineroEnviado, setDineroEnviado] = useState("");
   const [fechaPago, setFechaPago] = useState(TODAY);
 
-  // ── Autenticación centralizada ──────────────────────────────────────────────
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [adminPwd, setAdminPwd] = useState("");
+  // ── Autenticación con Firebase (una cuenta por persona) ─────────────────────
+  const { usuario, cargando: cargandoSesion, error: errorAuth, setError: setErrorAuth, entrar, salir } = useAuth();
+  const isAdmin = Boolean(usuario);
+  const [correo, setCorreo] = useState("");
+  const [clave, setClave] = useState("");
+  const [entrando, setEntrando] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const timerRef = useRef(null);
 
@@ -72,11 +75,11 @@ function App() {
   const startTimer = useCallback(() => {
     clearTimer();
     timerRef.current = setTimeout(() => {
-      setIsAdmin(false);
-      setAdminPwd("");
+      salir();
+      setClave("");
       setSessionExpired(true);
     }, INACTIVITY_TIMEOUT_MS);
-  }, [clearTimer]);
+  }, [clearTimer, salir]);
 
   // Inicia/reinicia timer al detectar actividad (solo cuando hay sesión activa)
   useEffect(() => {
@@ -94,26 +97,26 @@ function App() {
     };
   }, [isAdmin, startTimer, clearTimer]);
 
-  const handleAdminLogin = useCallback(() => {
-    if (adminPwd === ADMIN_PASSWORD) {
-      setIsAdmin(true);
-      setAdminPwd("");
-      setSessionExpired(false);
-    } else {
-      alert("Contraseña incorrecta");
+  const handleAdminLogin = useCallback(async (e) => {
+    if (e) e.preventDefault();
+    if (!correo.trim() || !clave) {
+      setErrorAuth("Escribe tu correo y tu contraseña.");
+      return;
     }
-  }, [adminPwd]);
+    setEntrando(true);
+    const ok = await entrar(correo, clave);
+    setEntrando(false);
+    if (ok) {
+      setClave("");
+      setSessionExpired(false);
+    }
+  }, [correo, clave, entrar, setErrorAuth]);
 
   const handleAdminLogout = useCallback(() => {
-    setIsAdmin(false);
-    setAdminPwd("");
+    salir();
+    setClave("");
     clearTimer();
-  }, [clearTimer]);
-
-  // Permitir Enter en el campo de contraseña
-  const handlePwdKeyDown = useCallback((e) => {
-    if (e.key === "Enter") handleAdminLogin();
-  }, [handleAdminLogin]);
+  }, [clearTimer, salir]);
   // ────────────────────────────────────────────────────────────────────────────
 
   const { tasaAnual, meta, loading: loadingTasa } = useTasaMora();
@@ -223,45 +226,81 @@ function App() {
       </div>
 
       {/* PANEL DE AUTENTICACIÓN (compartido para Escrituras y Evidencias) */}
-      {isProtectedTab && !isAdmin && (
-        <div style={{ maxWidth: "400px", width: "100%", margin: "2rem auto", padding: "2rem 1.5rem", background: "#f3f4f6", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}>
+      {isProtectedTab && !isAdmin && !cargandoSesion && (
+        <form
+          onSubmit={handleAdminLogin}
+          style={{ maxWidth: "400px", width: "100%", margin: "2rem auto", padding: "2rem 1.5rem", background: "#f3f4f6", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}
+        >
           <h3 style={{ textAlign: "center", color: "#166534", marginBottom: "1.5rem" }}>
-            🔒 Acceso de Administrador
+            🔒 Acceso del personal
           </h3>
+
           {sessionExpired && (
             <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: "8px", padding: "10px 14px", marginBottom: "1rem", color: "#92400e", fontSize: "0.9rem" }}>
               ⏱ Sesión cerrada automáticamente por inactividad (5 min).
             </div>
           )}
-          <label style={{ display: "block", fontWeight: "bold", marginBottom: "0.5rem", color: "#374151" }}>
-            Contraseña Admin:
+
+          {errorAuth && (
+            <div style={{ background: "#fee2e2", border: "1px solid #b91c1c", borderRadius: "8px", padding: "10px 14px", marginBottom: "1rem", color: "#b91c1c", fontSize: "0.9rem" }}>
+              {errorAuth}
+            </div>
+          )}
+
+          <label htmlFor="correo" style={{ display: "block", fontWeight: "bold", marginBottom: "0.5rem", color: "#374151" }}>
+            Correo:
           </label>
           <input
-            type="password"
-            value={adminPwd}
-            onChange={(e) => { setAdminPwd(e.target.value); setSessionExpired(false); }}
-            onKeyDown={handlePwdKeyDown}
-            placeholder="Ingrese la contraseña"
+            id="correo"
+            type="email"
+            autoComplete="username"
+            value={correo}
+            onChange={(e) => { setCorreo(e.target.value); setErrorAuth(""); setSessionExpired(false); }}
+            placeholder="nombre@notaria.gov.co"
             style={{ width: "100%", padding: "12px", fontSize: "1rem", border: "1px solid #d1d5db", borderRadius: "8px", marginBottom: "1rem", boxSizing: "border-box" }}
             autoFocus
           />
+
+          <label htmlFor="clave" style={{ display: "block", fontWeight: "bold", marginBottom: "0.5rem", color: "#374151" }}>
+            Contraseña:
+          </label>
+          <input
+            id="clave"
+            type="password"
+            autoComplete="current-password"
+            value={clave}
+            onChange={(e) => { setClave(e.target.value); setErrorAuth(""); setSessionExpired(false); }}
+            placeholder="Tu contraseña"
+            style={{ width: "100%", padding: "12px", fontSize: "1rem", border: "1px solid #d1d5db", borderRadius: "8px", marginBottom: "1rem", boxSizing: "border-box" }}
+          />
+
           <button
-            onClick={handleAdminLogin}
-            style={{ width: "100%", padding: "12px", background: "#166534", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}
+            type="submit"
+            disabled={entrando}
+            style={{ width: "100%", padding: "12px", background: entrando ? "#6b7280" : "#166534", color: "white", border: "none", borderRadius: "8px", cursor: entrando ? "wait" : "pointer", fontSize: "1rem", fontWeight: "bold" }}
           >
-            Ingresar como Admin
+            {entrando ? "Entrando…" : "Iniciar sesión"}
           </button>
+
           <p style={{ textAlign: "center", marginTop: "1rem", color: "#6b7280", fontSize: "0.85rem" }}>
-            La sesión se cierra automáticamente tras 5 min de inactividad.
+            Cada persona usa su propia cuenta. La sesión se cierra sola tras
+            5 minutos de inactividad y al cerrar el navegador.
           </p>
-        </div>
+        </form>
+      )}
+
+      {/* Mientras Firebase comprueba si ya había sesión abierta */}
+      {isProtectedTab && cargandoSesion && (
+        <p style={{ textAlign: "center", padding: "3rem 1rem", color: "#6b7280" }}>
+          Comprobando sesión…
+        </p>
       )}
 
       {/* BARRA DE SESIÓN (cuando admin está activo en pestañas protegidas) */}
       {isProtectedTab && isAdmin && (
         <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", maxWidth: "1380px", margin: "0 auto 0.5rem", padding: "0 1rem", gap: "0.75rem" }}>
           <span style={{ color: "#166534", fontSize: "0.9rem", fontWeight: "bold" }}>
-            ✅ Sesión admin activa · Cierre automático por inactividad en 5 min
+            ✅ {usuario?.email} · Cierre automático por inactividad en 5 min
           </span>
           <button
             onClick={handleAdminLogout}
@@ -360,11 +399,14 @@ function App() {
         </>
       )}
 
-      {/* PESTAÑA ESCRITURAS */}
-      {activeTab === "escrituras" && <EscriturasPendientes isAdmin={isAdmin} />}
+      {/*
+        Estas dos pestañas solo se montan con sesión iniciada. Antes se
+        montaban siempre y ahora, con las reglas de Firebase cerradas,
+        intentarían leer sin permiso y llenarían la consola de errores.
+      */}
+      {activeTab === "escrituras" && isAdmin && <EscriturasPendientes isAdmin={isAdmin} />}
 
-      {/* PESTAÑA EVIDENCIAS */}
-      {activeTab === "evidencias" && <Evidencias isAdmin={isAdmin} />}
+      {activeTab === "evidencias" && isAdmin && <Evidencias isAdmin={isAdmin} />}
     </div>
   );
 }

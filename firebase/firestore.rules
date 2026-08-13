@@ -1,0 +1,51 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reglas de Firestore — Notaría Única de Cartagena del Chairá
+//
+// Regla general: nadie lee ni escribe nada sin haber iniciado sesión.
+// La única excepción es la tasa de mora, porque la calculadora de Liquidación
+// es pública y la necesita para funcionar sin que nadie inicie sesión.
+//
+// Dónde se pegan: console.firebase.google.com → tu proyecto →
+// Firestore Database → pestaña "Reglas" → pegar → Publicar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function haIniciadoSesion() {
+      return request.auth != null;
+    }
+
+    // ── Configuración pública ───────────────────────────────────────────────
+    // config/tasaMora lo lee TODO visitante de la página de liquidación.
+    // Si esto se cierra, la calculadora deja de mostrar la tasa vigente.
+    // Solo contiene el porcentaje, la fecha y la fuente: nada sensible.
+    match /config/{documento} {
+      allow read: if true;
+      allow write: if haIniciadoSesion();
+    }
+
+    // ── Evidencias notariales ───────────────────────────────────────────────
+    match /folders/{carpeta} {
+      allow read, write: if haIniciadoSesion();
+    }
+
+    match /files/{archivo} {
+      allow read, write: if haIniciadoSesion();
+    }
+
+    // ── Escrituras pendientes Florencia ─────────────────────────────────────
+    match /escrituras/{escritura} {
+      allow read, write: if haIniciadoSesion();
+    }
+
+    // ── Todo lo demás queda cerrado ─────────────────────────────────────────
+    // Si mañana se agrega una colección nueva, por defecto nace protegida:
+    // hay que añadirla arriba a propósito para que sea accesible.
+    match /{documento=**} {
+      allow read, write: if false;
+    }
+  }
+}

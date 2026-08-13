@@ -1,0 +1,40 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reglas de Storage — Notaría Única de Cartagena del Chairá
+//
+// Los documentos solo se pueden listar, subir, reemplazar o borrar con sesión
+// iniciada. Cualquier ruta fuera de "evidencias/" queda cerrada.
+//
+// Dónde se pegan: console.firebase.google.com → tu proyecto →
+// Storage → pestaña "Reglas" → pegar → Publicar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function haIniciadoSesion() {
+      return request.auth != null;
+    }
+
+    match /evidencias/{carpeta}/{archivo} {
+
+      allow read: if haIniciadoSesion();
+
+      // En subir y reemplazar se comprueba además el tamaño.
+      // 50 MB es holgado para un PDF escaneado y evita que un error
+      // (o alguien con malas intenciones) llene el bucket.
+      allow create, update: if haIniciadoSesion()
+                            && request.resource.size < 50 * 1024 * 1024;
+
+      // El borrado va aparte: al borrar no existe request.resource, así que
+      // no se le puede pedir el tamaño.
+      allow delete: if haIniciadoSesion();
+    }
+
+    // Cualquier otra ruta del bucket, cerrada.
+    match /{ruta=**} {
+      allow read, write: if false;
+    }
+  }
+}

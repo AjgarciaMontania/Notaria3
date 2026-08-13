@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Preferences } from '@capacitor/preferences';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 
@@ -10,11 +9,12 @@ import Recibidos from './screens/Recibidos.jsx';
 import { MINUTOS_INACTIVIDAD } from './config.js';
 import { escucharCarpetas, escucharArchivos } from './lib/evidencias.js';
 import { recogerPendientes, alRecibirArchivos } from './lib/compartidos.js';
-
-const CLAVE_SESION = 'sesion_iniciada_en';
+import { alCambiarSesion, cerrarSesion } from './lib/sesion.js';
 
 export default function App() {
-  const [autenticado, setAutenticado] = useState(null); // null = comprobando
+  // undefined = todavía comprobando; null = sin sesión; objeto = sesión activa
+  const [usuario, setUsuario] = useState(undefined);
+  const autenticado = Boolean(usuario);
   const [carpetas, setCarpetas] = useState([]);
   const [archivos, setArchivos] = useState([]);
   const [carpetaActual, setCarpetaActual] = useState(null);
@@ -31,29 +31,17 @@ export default function App() {
     }
   }, []);
 
-  // ¿Hay una sesión reciente guardada?
+  // Firebase avisa del estado de la sesión, incluida la recordada de la vez anterior
   useEffect(() => {
-    (async () => {
-      const { value } = await Preferences.get({ key: CLAVE_SESION });
-      const inicio = value ? Number(value) : 0;
-      const vigente = Date.now() - inicio < MINUTOS_INACTIVIDAD * 60 * 1000;
-      setAutenticado(Boolean(inicio) && vigente);
-    })();
+    return alCambiarSesion((cuenta) => {
+      setUsuario(cuenta ?? null);
+      if (!cuenta) setCarpetaActual(null);
+    });
   }, []);
-
-  const renovarSesion = useCallback(async () => {
-    await Preferences.set({ key: CLAVE_SESION, value: String(Date.now()) });
-  }, []);
-
-  const entrar = useCallback(async () => {
-    await renovarSesion();
-    setAutenticado(true);
-  }, [renovarSesion]);
 
   const salir = useCallback(async () => {
-    await Preferences.remove({ key: CLAVE_SESION });
     setCarpetaActual(null);
-    setAutenticado(false);
+    await cerrarSesion();
   }, []);
 
   // Cierre automático por inactividad
@@ -62,7 +50,6 @@ export default function App() {
 
     const reiniciar = () => {
       if (temporizador.current) clearTimeout(temporizador.current);
-      renovarSesion();
       temporizador.current = setTimeout(salir, MINUTOS_INACTIVIDAD * 60 * 1000);
     };
 
@@ -73,7 +60,7 @@ export default function App() {
       eventos.forEach((e) => window.removeEventListener(e, reiniciar));
       if (temporizador.current) clearTimeout(temporizador.current);
     };
-  }, [autenticado, renovarSesion, salir]);
+  }, [autenticado, salir]);
 
   // Datos en tiempo real (solo mientras hay sesión)
   useEffect(() => {
@@ -147,7 +134,7 @@ export default function App() {
     return () => window.removeEventListener('popstate', alVolver);
   }, [carpetaActual]);
 
-  if (autenticado === null) {
+  if (usuario === undefined) {
     return (
       <div className="pantalla-carga">
         <div className="spinner" />
@@ -155,7 +142,7 @@ export default function App() {
     );
   }
 
-  if (!autenticado) return <Login onEntrar={entrar} />;
+  if (!autenticado) return <Login />;
 
   // Si otra app compartió PDFs, eso manda sobre cualquier otra pantalla
   if (compartidos.length > 0) {
