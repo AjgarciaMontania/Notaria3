@@ -3,9 +3,21 @@ rules_version = '2';
 // ─────────────────────────────────────────────────────────────────────────────
 // Reglas de Firestore — Notaría Única de Cartagena del Chairá
 //
-// Regla general: nadie lee ni escribe nada sin haber iniciado sesión.
-// La única excepción es la tasa de mora, porque la calculadora de Liquidación
-// es pública y la necesita para funcionar sin que nadie inicie sesión.
+// El nivel de acceso de cada persona vive en la colección "usuarios", un
+// documento por correo, que se administra desde el panel "Usuarios" de la
+// página web:
+//
+//   usuarios/juan@notaria.com  →  { rol: "personal" }
+//
+// Niveles:
+//   admin       → todo, incluido repartir roles
+//   personal    → evidencias, escrituras y tasas
+//   liquidador  → nada de esto; solo liquida (la liquidación es matemática
+//                 que ocurre en el propio dispositivo y las tasas ya son
+//                 de lectura pública)
+//
+// Una cuenta SIN ficha se trata como "liquidador": lo más restringido. Así,
+// crear una cuenta en Firebase no concede acceso por sí solo.
 //
 // Dónde se pegan: console.firebase.google.com → tu proyecto →
 // Firestore Database → pestaña "Reglas" → pegar → Publicar.
@@ -15,27 +27,53 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function haIniciadoSesion() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.email != null;
     }
 
-    // ── Cuentas de SOLO LIQUIDACIÓN ─────────────────────────────────────────
-    // Entran a la APK únicamente para liquidar escrituras. La liquidación es
-    // matemática que ocurre en el propio celular y solo necesita leer las
-    // tasas de config, que ya son públicas: por eso estas cuentas no requieren
-    // permiso sobre ninguna otra colección.
-    //
-    // Esta lista debe coincidir SIEMPRE con src/utils/roles.js.
-    function esSoloLiquidacion() {
-      return haIniciadoSesion()
-        && request.auth.token.email != null
-        && request.auth.token.email.lower() in [
-             'liquidador@notaria.com'
-           ];
+    function correo() {
+      return request.auth.token.email.lower();
     }
 
-    // Sesión con permisos completos: cualquier cuenta que no esté restringida.
-    function esPersonalCompleto() {
-      return haIniciadoSesion() && !esSoloLiquidacion();
+    // ── Administrador raíz ──────────────────────────────────────────────────
+    // Llave maestra: es admin siempre, aunque su ficha no exista o alguien la
+    // borre. Garantiza que nunca se pueda quedar fuera de su propio sistema.
+    // Este correo está también en src/utils/roles.js y en storage.rules.
+    function esAdminRaiz() {
+      return haIniciadoSesion() && correo() == 'cha1@outlook.es';
+    }
+
+    function tieneFicha() {
+      return exists(/databases/$(database)/documents/usuarios/$(correo()));
+    }
+
+    function rolDeLaFicha() {
+      return get(/databases/$(database)/documents/usuarios/$(correo())).data.rol;
+    }
+
+    // Nivel efectivo. Sin ficha → 'liquidador'.
+    function nivel() {
+      return esAdminRaiz()
+        ? 'admin'
+        : (tieneFicha() ? rolDeLaFicha() : 'liquidador');
+    }
+
+    function esAdmin() {
+      return haIniciadoSesion() && nivel() == 'admin';
+    }
+
+    // Puede trabajar con evidencias, escrituras y tasas.
+    function puedeOperar() {
+      return haIniciadoSesion() && (nivel() == 'admin' || nivel() == 'personal');
+    }
+
+    // ── Fichas de usuario ───────────────────────────────────────────────────
+    // Cada quien puede leer LA SUYA (la app la necesita para saber qué
+    // mostrar). Ver la lista completa y modificar cualquier ficha es
+    // exclusivo del administrador.
+    match /usuarios/{correoFicha} {
+      allow get: if esAdmin() || (haIniciadoSesion() && correoFicha == correo());
+      allow list: if esAdmin();
+      allow write: if esAdmin();
     }
 
     // ── Configuración pública ───────────────────────────────────────────────
@@ -44,22 +82,21 @@ service cloud.firestore {
     // Solo contiene el porcentaje, la fecha y la fuente: nada sensible.
     match /config/{documento} {
       allow read: if true;
-      // Las tasas solo las cambia el personal desde el computador.
-      allow write: if esPersonalCompleto();
+      allow write: if puedeOperar();
     }
 
     // ── Evidencias notariales ───────────────────────────────────────────────
     match /folders/{carpeta} {
-      allow read, write: if esPersonalCompleto();
+      allow read, write: if puedeOperar();
     }
 
     match /files/{archivo} {
-      allow read, write: if esPersonalCompleto();
+      allow read, write: if puedeOperar();
     }
 
     // ── Escrituras pendientes Florencia ─────────────────────────────────────
     match /escrituras/{escritura} {
-      allow read, write: if esPersonalCompleto();
+      allow read, write: if puedeOperar();
     }
 
     // ── Todo lo demás queda cerrado ─────────────────────────────────────────

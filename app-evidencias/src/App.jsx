@@ -9,7 +9,8 @@ import Recibidos from './screens/Recibidos.jsx';
 import Escrituras from './screens/Escrituras.jsx';
 import Liquidacion from './screens/Liquidacion.jsx';
 import { MINUTOS_INACTIVIDAD } from './config.js';
-import { esSoloLiquidacion } from '@calculo/roles.js';
+import { puedeOperar } from '@calculo/roles.js';
+import { useRol } from './lib/rol.js';
 import { escucharCarpetas, escucharArchivos } from './lib/evidencias.js';
 import { escucharEscrituras } from './lib/escrituras.js';
 import { recogerPendientes, alRecibirArchivos } from './lib/compartidos.js';
@@ -19,9 +20,12 @@ export default function App() {
   // undefined = todavía comprobando; null = sin sesión; objeto = sesión activa
   const [usuario, setUsuario] = useState(undefined);
   const autenticado = Boolean(usuario);
-  // Cuenta restringida: solo puede liquidar. No se suscribe a nada de
-  // Firestore, porque las reglas se lo niegan y solo produciría errores.
-  const soloLiquida = autenticado && esSoloLiquidacion(usuario.email);
+  // El nivel de acceso vive en Firestore y lo administra la página web.
+  // Mientras se averigua, la app no se suscribe a nada: así una cuenta
+  // restringida nunca llega a pedir datos que tiene prohibidos.
+  const { rol, cargando: cargandoRol } = useRol(usuario);
+  const puedeVerTodo = autenticado && puedeOperar(rol);
+  const soloLiquida = autenticado && !cargandoRol && !puedeVerTodo;
   const [carpetas, setCarpetas] = useState([]);
   const [archivos, setArchivos] = useState([]);
   const [carpetaActual, setCarpetaActual] = useState(null);
@@ -75,7 +79,7 @@ export default function App() {
 
   // Datos en tiempo real (solo mientras hay sesión)
   useEffect(() => {
-    if (!autenticado || soloLiquida) return;
+    if (!puedeVerTodo) return;
     setCargando(true);
     let recibidoCarpetas = false;
     let recibidoArchivos = false;
@@ -98,18 +102,18 @@ export default function App() {
       pararCarpetas();
       pararArchivos();
     };
-  }, [autenticado, soloLiquida]);
+  }, [puedeVerTodo]);
 
   // Escrituras pendientes de Florencia
   useEffect(() => {
-    if (!autenticado || soloLiquida) return;
+    if (!puedeVerTodo) return;
     setCargandoEscrituras(true);
     const parar = escucharEscrituras((datos) => {
       setEscrituras(datos);
       setCargandoEscrituras(false);
     });
     return parar;
-  }, [autenticado, soloLiquida]);
+  }, [puedeVerTodo]);
 
   /**
    * Añade archivos compartidos descartando los que ya estén en la lista.
@@ -127,7 +131,7 @@ export default function App() {
 
   // Archivos llegados por "Compartir" desde otra aplicación
   useEffect(() => {
-    if (!autenticado || soloLiquida) return;
+    if (!puedeVerTodo) return;
     let oyente = null;
     let vivo = true;
 
@@ -145,7 +149,7 @@ export default function App() {
       vivo = false;
       if (oyente?.remove) oyente.remove();
     };
-  }, [autenticado, soloLiquida, agregarCompartidos]);
+  }, [puedeVerTodo, agregarCompartidos]);
 
   // Botón "atrás" de Android: vuelve al listado de carpetas
   useEffect(() => {
@@ -165,6 +169,16 @@ export default function App() {
   }
 
   if (!autenticado) return <Login />;
+
+  // Se sabe que hay sesión pero todavía no de qué nivel: se espera. Decidir
+  // antes de tiempo mostraría la pantalla equivocada durante un instante.
+  if (cargandoRol) {
+    return (
+      <div className="pantalla-carga">
+        <div className="spinner" />
+      </div>
+    );
+  }
 
   // Cuenta de solo liquidación: una sola pantalla, sin barra de pestañas.
   // Va antes que todo lo demás para que ni los archivos compartidos ni el

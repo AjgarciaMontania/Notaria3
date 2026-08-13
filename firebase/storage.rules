@@ -3,8 +3,10 @@ rules_version = '2';
 // ─────────────────────────────────────────────────────────────────────────────
 // Reglas de Storage — Notaría Única de Cartagena del Chairá
 //
-// Los documentos solo se pueden listar, subir, reemplazar o borrar con sesión
-// iniciada. Cualquier ruta fuera de "evidencias/" queda cerrada.
+// Los documentos solo se pueden listar, ver, subir, reemplazar o borrar si la
+// cuenta tiene nivel "admin" o "personal". El nivel se consulta en Firestore,
+// en la colección "usuarios", que se administra desde el panel de la página
+// web. Una cuenta sin ficha no puede tocar ningún archivo.
 //
 // Dónde se pegan: console.firebase.google.com → tu proyecto →
 // Storage → pestaña "Reglas" → pegar → Publicar.
@@ -14,36 +16,47 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     function haIniciadoSesion() {
-      return request.auth != null;
+      return request.auth != null && request.auth.token.email != null;
     }
 
-    // Cuentas de SOLO LIQUIDACIÓN: no tocan ningún documento del bucket.
-    // Esta lista debe coincidir SIEMPRE con src/utils/roles.js.
-    function esSoloLiquidacion() {
-      return haIniciadoSesion()
-        && request.auth.token.email != null
-        && request.auth.token.email.lower() in [
-             'liquidador@notaria.com'
-           ];
+    function correo() {
+      return request.auth.token.email.lower();
     }
 
-    function esPersonalCompleto() {
-      return haIniciadoSesion() && !esSoloLiquidacion();
+    // Llave maestra: mismo correo que en firestore.rules y src/utils/roles.js.
+    function esAdminRaiz() {
+      return haIniciadoSesion() && correo() == 'cha1@outlook.es';
+    }
+
+    function tieneFicha() {
+      return firestore.exists(/databases/(default)/documents/usuarios/$(correo()));
+    }
+
+    function rolDeLaFicha() {
+      return firestore.get(/databases/(default)/documents/usuarios/$(correo())).data.rol;
+    }
+
+    // Puede trabajar con los documentos. Sin ficha → no puede.
+    function puedeOperar() {
+      return esAdminRaiz()
+        || (haIniciadoSesion()
+            && tieneFicha()
+            && (rolDeLaFicha() == 'admin' || rolDeLaFicha() == 'personal'));
     }
 
     match /evidencias/{carpeta}/{archivo} {
 
-      allow read: if esPersonalCompleto();
+      allow read: if puedeOperar();
 
       // En subir y reemplazar se comprueba además el tamaño.
       // 50 MB es holgado para un PDF escaneado y evita que un error
       // (o alguien con malas intenciones) llene el bucket.
-      allow create, update: if esPersonalCompleto()
+      allow create, update: if puedeOperar()
                             && request.resource.size < 50 * 1024 * 1024;
 
       // El borrado va aparte: al borrar no existe request.resource, así que
       // no se le puede pedir el tamaño.
-      allow delete: if esPersonalCompleto();
+      allow delete: if puedeOperar();
     }
 
     // Soportes de envío de escrituras a la notaría de Florencia.
@@ -51,12 +64,12 @@ service firebase.storage {
     // juntos en esta carpeta y no anidados por número de escritura.
     match /soportes-escrituras/{archivo} {
 
-      allow read: if esPersonalCompleto();
+      allow read: if puedeOperar();
 
-      allow create, update: if esPersonalCompleto()
+      allow create, update: if puedeOperar()
                             && request.resource.size < 50 * 1024 * 1024;
 
-      allow delete: if esPersonalCompleto();
+      allow delete: if puedeOperar();
     }
 
     // Cualquier otra ruta del bucket, cerrada.

@@ -10,6 +10,9 @@ import TasasHistoricasPanel from "./components/TasasHistoricasPanel";
 import { useTasaMora } from "./hooks/useTasaMora";
 import { useTasasHistoricas } from "./hooks/useTasasHistoricas";
 import { useAuth } from "./hooks/useAuth";
+import { useRol } from "./hooks/useRol";
+import UsuariosPanel from "./components/UsuariosPanel";
+import { puedeOperar, puedeAdministrarUsuarios, ETIQUETAS_ROL, ROL_POR_DEFECTO } from "./utils/roles.js";
 
 import icontecLogo from './assets/icontec-iso9001.png';
 import iqnetLogo from './assets/iqnet.png';
@@ -60,7 +63,15 @@ function App() {
 
   // ── Autenticación con Firebase (una cuenta por persona) ─────────────────────
   const { usuario, cargando: cargandoSesion, error: errorAuth, setError: setErrorAuth, entrar, salir } = useAuth();
-  const isAdmin = Boolean(usuario);
+  // Hay sesión abierta ≠ tiene permiso. El nivel lo decide el rol de Firestore.
+  const haySesion = Boolean(usuario);
+  const { rol, cargando: cargandoRol } = useRol(usuario);
+  // isAdmin conserva su nombre: significa "puede trabajar con evidencias,
+  // escrituras y tasas". Un invitado (solo liquidar) NO lo es.
+  const isAdmin = haySesion && puedeOperar(rol);
+  const esAdministrador = haySesion && puedeAdministrarUsuarios(rol);
+  // Sesión abierta pero sin permiso para las pestañas protegidas
+  const sesionSinPermiso = haySesion && !cargandoRol && !isAdmin;
   const [correo, setCorreo] = useState("");
   const [clave, setClave] = useState("");
   const [entrando, setEntrando] = useState(false);
@@ -85,7 +96,7 @@ function App() {
 
   // Inicia/reinicia timer al detectar actividad (solo cuando hay sesión activa)
   useEffect(() => {
-    if (!isAdmin) {
+    if (!haySesion) {
       clearTimer();
       return;
     }
@@ -97,7 +108,7 @@ function App() {
       events.forEach((e) => window.removeEventListener(e, handleActivity));
       clearTimer();
     };
-  }, [isAdmin, startTimer, clearTimer]);
+  }, [haySesion, startTimer, clearTimer]);
 
   const handleAdminLogin = useCallback(async (e) => {
     if (e) e.preventDefault();
@@ -203,7 +214,7 @@ function App() {
   }, [hasInserted, rows.length]);
 
   // Panel de login compartido para pestañas protegidas
-  const isProtectedTab = activeTab === "escrituras" || activeTab === "evidencias";
+  const isProtectedTab = activeTab === "escrituras" || activeTab === "evidencias" || activeTab === "usuarios";
 
   return (
     <div>
@@ -226,10 +237,15 @@ function App() {
         <button onClick={() => setActiveTab("evidencias")} style={tabStyle(activeTab === "evidencias")}>
           Evidencias
         </button>
+        {esAdministrador && (
+          <button onClick={() => setActiveTab("usuarios")} style={tabStyle(activeTab === "usuarios")}>
+            👥 Usuarios
+          </button>
+        )}
       </div>
 
       {/* PANEL DE AUTENTICACIÓN (compartido para Escrituras y Evidencias) */}
-      {isProtectedTab && !isAdmin && !cargandoSesion && (
+      {isProtectedTab && !haySesion && !cargandoSesion && (
         <form
           onSubmit={handleAdminLogin}
           style={{ maxWidth: "400px", width: "100%", margin: "2rem auto", padding: "2rem 1.5rem", background: "#f3f4f6", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}
@@ -290,6 +306,28 @@ function App() {
             5 minutos de inactividad y al cerrar el navegador.
           </p>
         </form>
+      )}
+
+      {/* Sesión abierta, pero con un nivel que no alcanza para esta pestaña */}
+      {isProtectedTab && sesionSinPermiso && (
+        <div style={{ maxWidth: "520px", margin: "2rem auto", padding: "1.75rem 1.5rem", background: "#fffbeb", border: "1px solid #d97706", borderRadius: "16px", textAlign: "center" }}>
+          <h3 style={{ color: "#92400e", marginTop: 0 }}>Tu cuenta no tiene acceso a esta sección</h3>
+          <p style={{ color: "#92400e", fontSize: "0.95rem", lineHeight: 1.6 }}>
+            {usuario?.email} entra con el nivel{" "}
+            <strong>{ETIQUETAS_ROL[rol ?? ROL_POR_DEFECTO]?.nombre}</strong>, que
+            solo permite liquidar. La calculadora de esta página es de uso libre:
+            puedes usarla sin iniciar sesión, en la pestaña "Liquidación Notarial".
+          </p>
+          <p style={{ color: "#92400e", fontSize: "0.9rem" }}>
+            Si necesitas entrar aquí, pídele al administrador que te cambie el nivel.
+          </p>
+          <button
+            onClick={handleAdminLogout}
+            style={{ padding: "10px 20px", background: "#6b7280", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "0.95rem" }}
+          >
+            Cerrar sesión
+          </button>
+        </div>
       )}
 
       {/* Mientras Firebase comprueba si ya había sesión abierta */}
@@ -412,6 +450,10 @@ function App() {
       {activeTab === "escrituras" && isAdmin && <EscriturasPendientes isAdmin={isAdmin} />}
 
       {activeTab === "evidencias" && isAdmin && <Evidencias isAdmin={isAdmin} />}
+
+      {activeTab === "usuarios" && esAdministrador && (
+        <UsuariosPanel correoActual={usuario?.email?.toLowerCase()} />
+      )}
     </div>
   );
 }
