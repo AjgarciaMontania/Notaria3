@@ -41,21 +41,34 @@ public class ArchivosCompartidosPlugin extends Plugin {
 
     private final List<JSObject> pendientes = new ArrayList<>();
 
+    /** Evita que dos archivos copiados en el mismo milisegundo choquen de nombre. */
+    private int contador = 0;
+
     @Override
     protected void handleOnNewIntent(Intent intent) {
         super.handleOnNewIntent(intent);
         recibir(intent);
     }
 
-    /** La interfaz llama a esto al arrancar, por si llegaron archivos antes de estar lista. */
+    /**
+     * Único camino por el que la interfaz obtiene los archivos: los entrega y
+     * los saca de la cola en la misma operación.
+     *
+     * Antes había dos caminos —esta consulta y un aviso que ya traía la lista
+     * dentro— y los archivos llegaban por los dos, así que se subían por
+     * duplicado. Ahora el aviso es solo una señal sin contenido: la cola manda.
+     *
+     * synchronized: el aviso y el arranque de la app pueden pedir la cola casi
+     * a la vez, y sin esto los dos podrían leerla antes de que se vacíe.
+     */
     @PluginMethod
-    public void obtenerPendientes(PluginCall call) {
+    public synchronized void obtenerPendientes(PluginCall call) {
         JSObject respuesta = envolver(pendientes);
         pendientes.clear();
         call.resolve(respuesta);
     }
 
-    private void recibir(Intent intent) {
+    private synchronized void recibir(Intent intent) {
         if (intent == null) {
             return;
         }
@@ -118,9 +131,13 @@ public class ArchivosCompartidosPlugin extends Plugin {
         }
 
         pendientes.addAll(copiados);
+
+        // Aviso SIN contenido: solo dice "hay novedades, pide la cola".
+        // Si llevara la lista dentro, la interfaz la recibiría también por
+        // obtenerPendientes() y subiría cada archivo dos veces.
         // retainUntilConsumed = true: si la interfaz todavía no cargó, el aviso
         // se guarda y se entrega en cuanto se registre el oyente.
-        notifyListeners("archivosCompartidos", envolver(copiados), true);
+        notifyListeners("archivosCompartidos", new JSObject(), true);
     }
 
     private JSObject envolver(List<JSObject> lista) {
@@ -145,7 +162,8 @@ public class ArchivosCompartidosPlugin extends Plugin {
                 return null;
             }
 
-            destino = new File(carpeta, System.currentTimeMillis() + "_" + nombre);
+            contador++;
+            destino = new File(carpeta, System.currentTimeMillis() + "_" + contador + "_" + nombre);
 
             entrada = getContext().getContentResolver().openInputStream(uri);
             if (entrada == null) {

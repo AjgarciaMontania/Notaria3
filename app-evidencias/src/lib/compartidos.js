@@ -12,8 +12,15 @@ const ArchivosCompartidos = registerPlugin('ArchivosCompartidos', {
   }),
 });
 
-/** Archivos que llegaron antes de que la interfaz estuviera lista. */
-export async function pendientesAlArrancar() {
+/**
+ * Pide al plugin los archivos en cola y los saca de ella.
+ *
+ * Este es el ÚNICO sitio del que salen los archivos compartidos. El aviso del
+ * plugin no trae contenido: solo indica que hay novedades y hace llamar aquí.
+ * Cuando el aviso traía la lista dentro, los archivos entraban por dos vías y
+ * cada documento se subía por duplicado.
+ */
+export async function recogerPendientes() {
   if (!Capacitor.isNativePlatform()) return [];
   try {
     const respuesta = await ArchivosCompartidos.obtenerPendientes();
@@ -28,8 +35,8 @@ export async function pendientesAlArrancar() {
 export async function alRecibirArchivos(callback) {
   if (!Capacitor.isNativePlatform()) return { remove: async () => {} };
   try {
-    return await ArchivosCompartidos.addListener('archivosCompartidos', (datos) => {
-      const archivos = datos?.archivos ?? [];
+    return await ArchivosCompartidos.addListener('archivosCompartidos', async () => {
+      const archivos = await recogerPendientes();
       if (archivos.length) callback(archivos);
     });
   } catch (error) {

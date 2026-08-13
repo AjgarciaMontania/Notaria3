@@ -9,7 +9,7 @@ import Archivos from './screens/Archivos.jsx';
 import Recibidos from './screens/Recibidos.jsx';
 import { MINUTOS_INACTIVIDAD } from './config.js';
 import { escucharCarpetas, escucharArchivos } from './lib/evidencias.js';
-import { pendientesAlArrancar, alRecibirArchivos } from './lib/compartidos.js';
+import { recogerPendientes, alRecibirArchivos } from './lib/compartidos.js';
 
 const CLAVE_SESION = 'sesion_iniciada_en';
 
@@ -102,6 +102,20 @@ export default function App() {
     };
   }, [autenticado]);
 
+  /**
+   * Añade archivos compartidos descartando los que ya estén en la lista.
+   * La ruta la genera el plugin y es única por archivo recibido, así que
+   * sirve de identificador. Es una red de seguridad: aunque algo entregue
+   * el mismo archivo dos veces, no se sube por duplicado.
+   */
+  const agregarCompartidos = useCallback((llegados) => {
+    setCompartidos((previos) => {
+      const yaEstan = new Set(previos.map((a) => a.ruta));
+      const nuevos = llegados.filter((a) => a.ruta && !yaEstan.has(a.ruta));
+      return nuevos.length ? [...previos, ...nuevos] : previos;
+    });
+  }, []);
+
   // Archivos llegados por "Compartir" desde otra aplicación
   useEffect(() => {
     if (!autenticado) return;
@@ -109,20 +123,20 @@ export default function App() {
     let vivo = true;
 
     (async () => {
-      const yaLlegados = await pendientesAlArrancar();
-      if (vivo && yaLlegados.length) {
-        setCompartidos((previos) => [...previos, ...yaLlegados]);
-      }
+      // Primero el oyente, para no perder nada que llegue mientras tanto.
       oyente = await alRecibirArchivos((nuevos) => {
-        setCompartidos((previos) => [...previos, ...nuevos]);
+        if (vivo) agregarCompartidos(nuevos);
       });
+      // Y luego se vacía la cola por si ya había algo esperando.
+      const yaLlegados = await recogerPendientes();
+      if (vivo && yaLlegados.length) agregarCompartidos(yaLlegados);
     })();
 
     return () => {
       vivo = false;
       if (oyente?.remove) oyente.remove();
     };
-  }, [autenticado]);
+  }, [autenticado, agregarCompartidos]);
 
   // Botón "atrás" de Android: vuelve al listado de carpetas
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { crearCarpeta, subirArchivo, nombreDisponible } from '../lib/evidencias.js';
 import { leerCompartido, formatoTamano } from '../lib/compartidos.js';
 
@@ -14,6 +14,9 @@ export default function Recibidos({ archivos, carpetas, archivosExistentes, onCe
   const [progreso, setProgreso] = useState(null); // { actual, total, nombre, porcentaje }
   const [resultado, setResultado] = useState(null); // { subidos, fallidos: [] }
   const [error, setError] = useState('');
+  // Un doble toque en el botón podría lanzar la subida dos veces antes de que
+  // React redibuje la pantalla; este cerrojo lo impide.
+  const subiendo = useRef(false);
 
   const totalBytes = archivos.reduce((suma, a) => suma + (a.tamano || 0), 0);
 
@@ -33,7 +36,8 @@ export default function Recibidos({ archivos, carpetas, archivosExistentes, onCe
   };
 
   const subirTodo = async () => {
-    if (!destino) return;
+    if (!destino || subiendo.current) return;
+    subiendo.current = true;
     setError('');
 
     // Se va acumulando para que dos archivos del mismo lote no choquen de nombre
@@ -66,6 +70,7 @@ export default function Recibidos({ archivos, carpetas, archivosExistentes, onCe
       }
     }
 
+    subiendo.current = false;
     setProgreso(null);
     setResultado({ subidos, fallidos });
   };
