@@ -54,10 +54,15 @@ export default function Archivos({ carpeta, archivos, onVolver }) {
     }
 
     let subidos = 0;
+    const fallidos = [];
+    // Se acumulan los nombres ya usados para que dos archivos del mismo lote
+    // no se pisen entre sí.
+    const ocupados = [...archivos];
+
     try {
       for (let i = 0; i < seleccion.length; i++) {
         const archivo = seleccion[i];
-        const nombre = nombreDisponible(archivo.name, archivos);
+        const nombre = nombreDisponible(archivo.name, ocupados);
         // Antes de que empiece el progreso hay una lectura completa del
         // archivo, que en PDFs grandes tarda un momento: se avisa.
         setSubiendo({
@@ -67,16 +72,32 @@ export default function Archivos({ carpeta, archivos, onVolver }) {
           total: seleccion.length,
           leyendo: true,
         });
-        await subirArchivo(archivo, nombre, carpeta.name, (p) =>
-          setSubiendo((s) => (s ? { ...s, porcentaje: p, leyendo: false } : s))
-        );
-        subidos++;
+        try {
+          await subirArchivo(archivo, nombre, carpeta.name, (p) =>
+            setSubiendo((s) => (s ? { ...s, porcentaje: p, leyendo: false } : s))
+          );
+          ocupados.push({ fileName: nombre });
+          subidos++;
+        } catch (error) {
+          // Un archivo con problemas no detiene el resto del lote
+          console.error(error);
+          fallidos.push({ nombre: archivo.name, motivo: error.message });
+        }
       }
-      mostrar('ok', `${subidos} ${subidos === 1 ? 'archivo subido' : 'archivos subidos'}`);
-    } catch (error) {
-      console.error(error);
-      // Los mensajes de evidencias.js ya están redactados para el usuario.
-      mostrar('error', error.message || 'No se pudo subir el archivo', 9000);
+
+      if (fallidos.length === 0) {
+        mostrar('ok', `${subidos} ${subidos === 1 ? 'archivo subido' : 'archivos subidos'}`);
+      } else if (subidos === 0) {
+        mostrar('error', fallidos[0].motivo, 10000);
+      } else {
+        mostrar(
+          'parcial',
+          `${subidos} de ${seleccion.length} subidos. No se pudo con: ${fallidos
+            .map((f) => f.nombre)
+            .join(', ')}`,
+          10000
+        );
+      }
     } finally {
       setSubiendo(null);
     }

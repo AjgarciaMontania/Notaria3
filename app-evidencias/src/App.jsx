@@ -6,8 +6,10 @@ import { Capacitor } from '@capacitor/core';
 import Login from './screens/Login.jsx';
 import Carpetas from './screens/Carpetas.jsx';
 import Archivos from './screens/Archivos.jsx';
+import Recibidos from './screens/Recibidos.jsx';
 import { MINUTOS_INACTIVIDAD } from './config.js';
 import { escucharCarpetas, escucharArchivos } from './lib/evidencias.js';
+import { pendientesAlArrancar, alRecibirArchivos } from './lib/compartidos.js';
 
 const CLAVE_SESION = 'sesion_iniciada_en';
 
@@ -17,6 +19,8 @@ export default function App() {
   const [archivos, setArchivos] = useState([]);
   const [carpetaActual, setCarpetaActual] = useState(null);
   const [cargando, setCargando] = useState(true);
+  // PDFs que otra app envió con el botón "Compartir" de Android
+  const [compartidos, setCompartidos] = useState([]);
   const temporizador = useRef(null);
 
   // Barra de estado con el verde de la notaría
@@ -98,6 +102,28 @@ export default function App() {
     };
   }, [autenticado]);
 
+  // Archivos llegados por "Compartir" desde otra aplicación
+  useEffect(() => {
+    if (!autenticado) return;
+    let oyente = null;
+    let vivo = true;
+
+    (async () => {
+      const yaLlegados = await pendientesAlArrancar();
+      if (vivo && yaLlegados.length) {
+        setCompartidos((previos) => [...previos, ...yaLlegados]);
+      }
+      oyente = await alRecibirArchivos((nuevos) => {
+        setCompartidos((previos) => [...previos, ...nuevos]);
+      });
+    })();
+
+    return () => {
+      vivo = false;
+      if (oyente?.remove) oyente.remove();
+    };
+  }, [autenticado]);
+
   // Botón "atrás" de Android: vuelve al listado de carpetas
   useEffect(() => {
     if (!carpetaActual) return;
@@ -116,6 +142,18 @@ export default function App() {
   }
 
   if (!autenticado) return <Login onEntrar={entrar} />;
+
+  // Si otra app compartió PDFs, eso manda sobre cualquier otra pantalla
+  if (compartidos.length > 0) {
+    return (
+      <Recibidos
+        archivos={compartidos}
+        carpetas={carpetas}
+        archivosExistentes={archivos}
+        onCerrar={() => setCompartidos([])}
+      />
+    );
+  }
 
   // La carpeta abierta se resuelve contra la lista viva, por si la renombran
   const carpetaViva = carpetaActual
