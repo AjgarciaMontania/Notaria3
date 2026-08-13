@@ -527,6 +527,24 @@ input:focus {
   transition: width 0.2s ease;
 }
 
+/* Mientras se lee el archivo del celular todavía no hay porcentaje real */
+.barra-progreso-relleno.indeterminado {
+  width: 35%;
+  animation: recorrer 1.1s ease-in-out infinite;
+}
+
+@keyframes recorrer {
+  0% {
+    margin-left: 0;
+  }
+  50% {
+    margin-left: 65%;
+  }
+  100% {
+    margin-left: 0;
+  }
+}
+
 .subida-porcentaje {
   display: block;
   text-align: right;

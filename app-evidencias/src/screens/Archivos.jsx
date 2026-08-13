@@ -58,21 +58,25 @@ export default function Archivos({ carpeta, archivos, onVolver }) {
       for (let i = 0; i < seleccion.length; i++) {
         const archivo = seleccion[i];
         const nombre = nombreDisponible(archivo.name, archivos);
+        // Antes de que empiece el progreso hay una lectura completa del
+        // archivo, que en PDFs grandes tarda un momento: se avisa.
         setSubiendo({
           nombre,
           porcentaje: 0,
           actual: i + 1,
           total: seleccion.length,
+          leyendo: true,
         });
         await subirArchivo(archivo, nombre, carpeta.name, (p) =>
-          setSubiendo((s) => (s ? { ...s, porcentaje: p } : s))
+          setSubiendo((s) => (s ? { ...s, porcentaje: p, leyendo: false } : s))
         );
         subidos++;
       }
       mostrar('ok', `${subidos} ${subidos === 1 ? 'archivo subido' : 'archivos subidos'}`);
     } catch (error) {
       console.error(error);
-      mostrar('error', `Error al subir: ${error.message}`);
+      // Los mensajes de evidencias.js ya están redactados para el usuario.
+      mostrar('error', error.message || 'No se pudo subir el archivo', 9000);
     } finally {
       setSubiendo(null);
     }
@@ -315,9 +319,14 @@ function BarraSubida({ datos }) {
         )}
       </div>
       <div className="barra-progreso">
-        <div className="barra-progreso-relleno" style={{ width: `${datos.porcentaje}%` }} />
+        <div
+          className={`barra-progreso-relleno${datos.leyendo ? ' indeterminado' : ''}`}
+          style={datos.leyendo ? undefined : { width: `${datos.porcentaje}%` }}
+        />
       </div>
-      <span className="subida-porcentaje">{datos.porcentaje}%</span>
+      <span className="subida-porcentaje">
+        {datos.leyendo ? 'Leyendo el archivo…' : `${datos.porcentaje}%`}
+      </span>
     </div>
   );
 }
