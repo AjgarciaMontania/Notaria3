@@ -1,0 +1,23 @@
+node_modules
+dist
+salida
+*.local
+
+# Claves de firma: NUNCA subirlas al repositorio
+*.jks
+*.keystore
+keystore.properties
+
+# Gradle / Android
+android/.gradle
+android/local.properties
+android/app/build
+android/build
+android/capacitor-cordova-android-plugins
+android/app/src/main/assets/public
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+*.apk
+*.aab
+
+.DS_Store

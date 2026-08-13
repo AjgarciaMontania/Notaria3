@@ -1,0 +1,135 @@
+name: Compilar APK de Evidencias
+
+# Cuándo se ejecuta:
+#  1. Al subir cambios dentro de app-evidencias/ a la rama main.
+#  2. A mano, desde la pestaña "Actions" → "Run workflow".
+#  3. Al publicar una Release en GitHub (el APK se adjunta a esa Release).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app-evidencias/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app-evidencias
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v5
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: app-evidencias/package-lock.json
+
+      - name: Preparar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Preparar Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar la interfaz web
+        run: npm run build
+
+      - name: Sincronizar con el proyecto Android
+        run: npx cap sync android
+
+      - name: Dar permisos de ejecución a Gradle
+        run: chmod +x android/gradlew
+
+      # ── APK de DEBUG ─────────────────────────────────────────────────────
+      # Se firma con la clave de depuración estándar de Android, así que es
+      # instalable de inmediato sin configurar nada. Este es el APK que puedes
+      # usar desde el primer día.
+      - name: Compilar APK de debug
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        working-directory: app-evidencias/android
+
+      - name: Preparar carpeta de salida
+        run: |
+          mkdir -p salida
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             salida/EvidenciasNotaria-debug.apk
+
+      # ── APK de RELEASE (opcional) ────────────────────────────────────────
+      # Solo se compila si cargaste los secrets de firma en el repositorio.
+      # Las instrucciones para crearlos están en app-evidencias/README.md
+      - name: Comprobar si hay clave de firma
+        id: firma
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "disponible=si" >> "$GITHUB_OUTPUT"
+            echo "Clave de firma encontrada: se compilará también el APK de release."
+          else
+            echo "disponible=no" >> "$GITHUB_OUTPUT"
+            echo "Sin KEYSTORE_BASE64: se omite el APK de release (el de debug sí se genera)."
+          fi
+
+      - name: Reconstruir el archivo de firma
+        if: steps.firma.outputs.disponible == 'si'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/notaria.jks"
+
+      - name: Compilar APK de release firmado
+        if: steps.firma.outputs.disponible == 'si'
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/notaria.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        working-directory: app-evidencias/android
+
+      - name: Copiar APK de release
+        if: steps.firma.outputs.disponible == 'si'
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk \
+             salida/EvidenciasNotaria.apk
+
+      - name: Borrar el archivo de firma del runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/notaria.jks"
+
+      # ── Entrega ──────────────────────────────────────────────────────────
+      - name: Publicar los APK para descargar
+        uses: actions/upload-artifact@v4
+        with:
+          name: APK-Evidencias-Notaria
+          path: app-evidencias/salida/*.apk
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Adjuntar el APK a la Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app-evidencias/salida/*.apk
+          body: |
+            APK de Evidencias — Notaría Única de Cartagena del Chairá.
+
+            Descarga el archivo `.apk` en el celular, ábrelo y autoriza la
+            instalación desde orígenes desconocidos cuando Android lo pida.

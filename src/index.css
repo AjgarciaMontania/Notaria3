@@ -7,12 +7,26 @@
   padding: 0;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   font-family: Arial, sans-serif;
   background-color: #fff;
   padding: 20px;
   min-height: 100vh;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
 }
+
+/* Ninguna imagen o iframe debe desbordar su contenedor */
+img,
+iframe {
+  max-width: 100%;
+}
+
 
 header {
   display: flex;
@@ -156,7 +170,8 @@ button:disabled {
 }
 
 #output-section {
-  max-width: 1200px;
+  max-width: 1380px;
+  width: calc(100% - 40px);
   margin: 0 auto;
   background: white;
   border-radius: 8px;
@@ -167,32 +182,56 @@ button:disabled {
 table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 th {
   background-color: #4caf50;
   color: white;
-  padding: 12px;
+  padding: 7px 8px;
   text-align: left;
   font-weight: bold;
+  font-size: 0.78rem;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.2;
+  vertical-align: bottom;
 }
 
 td {
-  padding: 12px;
+  padding: 6px 8px;
   border-top: 1px solid #ddd;
   background-color: #f9f9f9;
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* La columna ACTO puede partir en varias líneas */
+td:first-child {
+  white-space: normal;
+  word-break: break-word;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 td input, td textarea {
   width: 100%;
-  padding: 8px;
+  padding: 4px 5px;
   border: 1px solid #ddd;
   border-radius: 4px;
   background-color: white;
+  font-size: 0.78rem;
 }
 
 td input[type="date"] {
   text-align: center;
+}
+
+.valor-acto {
+  min-width: 130px;
 }
 
 .summary-row td {
@@ -242,7 +281,8 @@ td input[type="date"] {
 /* ==================== NUEVO DISEÑO DEL FORMULARIO ==================== */
 .input-card {
   background: white;
-  max-width: 1200px;
+  max-width: 1380px;
+  width: calc(100% - 40px);
   margin: 2rem auto;
   padding: 2.5rem;
   border-radius: 16px;
@@ -343,15 +383,352 @@ td input[type="date"] {
   transform: none;
 }
 
-/* Responsive - se apilan en móvil */
+/* ==================== NAVEGACIÓN POR PESTAÑAS ==================== */
+.tabs-nav {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px auto;
+  max-width: 1380px;
+  padding: 0 1rem;
+}
+
+/* ==================== CONTENEDOR DE TABLAS CON SCROLL ==================== */
+/*
+  Envuelve cualquier tabla ancha. En escritorio no se nota; en móvil permite
+  desplazamiento lateral suave sin romper el ancho de la página.
+*/
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.table-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 4px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Aviso de "desliza para ver más", solo en móvil */
+.scroll-hint {
+  display: none;
+  font-size: 0.8rem;
+  color: #6b7280;
+  text-align: center;
+  padding: 6px 0 10px;
+  font-style: italic;
+}
+
+/* ==================== RESPONSIVE ==================== */
+
+/* --- Tablets y pantallas medianas --- */
+@media (max-width: 1024px) {
+  .three-columns {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* --- Móviles --- */
 @media (max-width: 768px) {
+  body {
+    padding: 10px;
+  }
+
   .three-columns,
   .two-columns {
     grid-template-columns: 1fr;
   }
-  
+
+  .input-row {
+    gap: 1rem;
+  }
+
+  .inputs-container {
+    gap: 1.2rem;
+  }
+
   .input-card {
-    padding: 1.8rem 1.2rem;
-    margin: 1rem;
+    padding: 1.2rem 1rem;
+    margin: 1rem 0;
+    width: 100%;
+    border-radius: 12px;
+  }
+
+  /* Cabecera: logo, título y foto apilados y centrados */
+  header {
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 10px 0;
+  }
+
+  header h2 {
+    font-size: 1.15rem;
+    margin: 0;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  header img.logo {
+    height: 48px;
+  }
+
+  header img.office-photo {
+    height: 110px;
+    width: 100%;
+    max-width: 320px;
+    object-fit: cover;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+    line-height: 1.3;
+    padding: 0 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  h1::after {
+    width: 120px;
+  }
+
+  /* Pestañas: ocupan el ancho y no se salen */
+  .tabs-nav {
+    gap: 6px;
+    padding: 0;
+  }
+
+  .tabs-nav button {
+    flex: 1 1 100%;
+    margin: 0 !important;
+    padding: 12px 10px !important;
+    font-size: 0.95rem !important;
+  }
+
+  /* Etiquetas e inputs más compactos.
+     16px mínimo en inputs evita que iOS haga zoom automático al enfocar. */
+  .input-group label,
+  .dinero-group label {
+    font-size: 1rem;
+  }
+
+  .dinero-group label {
+    font-size: 1.05rem;
+  }
+
+  .input-group input,
+  .dinero-group input,
+  input[type="number"],
+  input[type="text"],
+  input[type="date"],
+  input[type="password"],
+  select,
+  textarea {
+    font-size: 16px;
+    max-width: 100%;
+  }
+
+  .input-group input,
+  .dinero-group input {
+    padding: 12px 14px;
+  }
+
+  /* Botones principales: uno por línea, ancho completo */
+  .button-row {
+    flex-direction: column;
+    gap: 0.7rem;
+    margin-top: 1.5rem;
+  }
+
+  .button-row button {
+    width: 100%;
+    min-width: 0;
+    padding: 14px 20px;
+    font-size: 1.05rem;
+  }
+
+  .button-row button:hover {
+    transform: none;
+  }
+
+  /* Tablas: se muestra el aviso de desplazamiento lateral */
+  .scroll-hint {
+    display: block;
+  }
+
+  #output-section {
+    width: 100%;
+    border-radius: 8px;
+  }
+
+  /*
+    En móvil las tablas pasan a table-layout: auto para que cada columna tome
+    el ancho que realmente necesita su contenido (los campos de fecha y los
+    valores en pesos no se recortan) y la tabla se desplaza dentro de
+    .table-scroll en vez de comprimirse.
+  */
+  .table-scroll table {
+    table-layout: auto !important;
+    min-width: 1100px;
+  }
+
+  .table-scroll table.tabla-compacta {
+    min-width: 900px;
+  }
+
+  .table-scroll table th,
+  .table-scroll table td {
+    white-space: nowrap;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  /* Columnas de texto largo: sí pueden partir en varias líneas */
+  .table-scroll table th:first-child,
+  .table-scroll table td:first-child {
+    white-space: normal;
+    min-width: 150px;
+  }
+
+  .table-scroll table.tabla-compacta td.celda-texto,
+  .table-scroll table.tabla-compacta th.celda-texto {
+    white-space: normal;
+    min-width: 180px;
+  }
+
+  /* En Escrituras la primera columna es ITEM (un número): no necesita ancho */
+  .table-scroll table.tabla-escrituras th:first-child,
+  .table-scroll table.tabla-escrituras td:first-child {
+    min-width: 52px;
+    text-align: center;
+  }
+
+  /* Primera columna fija para no perder de vista la referencia al desplazar */
+  .table-scroll table th:first-child,
+  .table-scroll table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    box-shadow: 1px 0 0 rgba(0, 0, 0, 0.08);
+  }
+
+  /* Las filas de totales/notas ocupan varias columnas: no deben quedar fijas */
+  .table-scroll table td:first-child[colspan] {
+    position: static;
+    box-shadow: none;
+  }
+
+  /* Etiquetas de totales (SUBTOTAL, TOTAL A CONSIGNAR…): sin cortes a media palabra */
+  .table-scroll .summary-row td,
+  .table-scroll .additional-row td {
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+    min-width: 155px;
+  }
+
+  .table-scroll table th:first-child {
+    background-color: #4caf50;
+    z-index: 3;
+  }
+
+  .table-scroll table td:first-child {
+    background-color: #f9f9f9;
+  }
+
+  .table-scroll table .summary-row td:first-child {
+    background-color: #e8f5e9;
+  }
+
+  .table-scroll table .additional-row td:first-child {
+    background-color: #fff3e0;
+  }
+
+  /* Tablas de Escrituras y Evidencias: cabecera verde oscuro y celdas blancas */
+  .table-scroll table.tabla-compacta th:first-child {
+    background-color: #166534;
+  }
+
+  .table-scroll table.tabla-compacta td:first-child {
+    background-color: #ffffff;
+  }
+
+  /* Información de la notaría */
+  #notaria-info {
+    padding: 0 0.5rem;
+    margin-top: 2rem;
+  }
+
+  #notaria-info iframe {
+    height: 260px;
+  }
+
+  .info-grid {
+    gap: 1.2rem;
+    margin: 1.5rem 0;
+  }
+
+  .contacto,
+  .horario {
+    min-width: 0;
+    width: 100%;
+    padding: 1.2rem;
+  }
+
+  .contacto p,
+  .horario p {
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .certificados img {
+    margin: 8px;
+  }
+
+  /* Formularios en rejilla dentro de Evidencias / Escrituras */
+  .form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Filas de botones secundarios: apilados y a ancho completo */
+  .action-buttons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .action-buttons > button,
+  .action-buttons > label {
+    width: 100%;
+    text-align: center;
+    margin-right: 0 !important;
+  }
+}
+
+/* --- Móviles pequeños --- */
+@media (max-width: 420px) {
+  h1 {
+    font-size: 1.2rem;
+  }
+
+  header h2 {
+    font-size: 1rem;
+  }
+
+  .input-card {
+    padding: 1rem 0.8rem;
   }
 }

@@ -157,7 +157,7 @@ export default function EscriturasPendientes({ isAdmin }) {
   };
 
   return (
-    <div className="input-card" style={{ maxWidth: "1200px", margin: "2rem auto", padding: "2.5rem", background: "white", borderRadius: "16px", boxShadow: "0 10px 30px rgba(0,0,0,0.08)", border: "1px solid #e5e7eb" }}>
+    <div className="input-card" style={{ maxWidth: "1380px" }}>
       <h2 style={{ textAlign: "center", color: "#166534", fontSize: "1.8rem", marginBottom: "2rem", textTransform: "uppercase" }}>
         Escrituras Pendientes Florencia
       </h2>
@@ -168,7 +168,7 @@ export default function EscriturasPendientes({ isAdmin }) {
           <h3 style={{ color: "#166534", marginBottom: "1rem" }}>
             {editingItem ? "Editar Escritura" : "Agregar Nueva Escritura"}
           </h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
+          <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
             <input type="text" placeholder="Acto" value={newEntry.acto} onChange={(e) => setNewEntry({ ...newEntry, acto: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
             <input type="text" placeholder="N° Escritura" value={newEntry.numeroEscritura} onChange={(e) => setNewEntry({ ...newEntry, numeroEscritura: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
             <input type="date" value={newEntry.fechaEscritura} onChange={(e) => setNewEntry({ ...newEntry, fechaEscritura: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px", width: "100%" }} />
@@ -180,16 +180,18 @@ export default function EscriturasPendientes({ isAdmin }) {
             <input type="text" placeholder="Motivo (opcional)" value={newEntry.motivo} onChange={(e) => setNewEntry({ ...newEntry, motivo: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
           </div>
 
-          <button onClick={addOrUpdateEntry} style={{ padding: "12px 24px", background: "#166534", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", marginRight: "1rem" }}>
-            {editingItem ? "Guardar Cambios" : "Agregar"}
-          </button>
-          {editingItem && (
-            <button onClick={() => { setEditingItem(null); setNewEntry({ acto: "", numeroEscritura: "", fechaEscritura: "", matricula: "", notaDevolutiva: "NO", motivo: "" }); }} style={{ padding: "12px 24px", background: "#6b7280", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}>
-              Cancelar Edición
+          <div className="action-buttons" style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
+            <button onClick={addOrUpdateEntry} style={{ padding: "12px 24px", background: "#166534", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}>
+              {editingItem ? "Guardar Cambios" : "Agregar"}
             </button>
-          )}
+            {editingItem && (
+              <button onClick={() => { setEditingItem(null); setNewEntry({ acto: "", numeroEscritura: "", fechaEscritura: "", matricula: "", notaDevolutiva: "NO", motivo: "" }); }} style={{ padding: "12px 24px", background: "#6b7280", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}>
+                Cancelar Edición
+              </button>
+            )}
+          </div>
 
-          <div style={{ marginTop: "1rem", display: "flex", flexWrap: "wrap", gap: "1rem" }}>
+          <div className="action-buttons" style={{ marginTop: "1rem", display: "flex", flexWrap: "wrap", gap: "1rem" }}>
             <button onClick={exportToExcel} style={{ padding: "12px 24px", background: "#6b21a8", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}>📥 Exportar Excel</button>
             <label style={{ display: "inline-block", padding: "12px 24px", background: "#d97706", color: "white", borderRadius: "8px", cursor: "pointer" }}>
               📤 Importar Excel
@@ -201,29 +203,43 @@ export default function EscriturasPendientes({ isAdmin }) {
       )}
 
       {/* TABLA DE REGISTROS */}
-      <table style={{ width: "100%", borderCollapse: "collapse", background: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
+      {escrituras.length > 0 && (
+        <p className="scroll-hint">← Desliza la tabla hacia los lados para ver todas las columnas →</p>
+      )}
+      <div className="table-scroll">
+      <table className="tabla-compacta tabla-escrituras" style={{ width: "100%", borderCollapse: "collapse", background: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", tableLayout: "fixed" }}>
+        <colgroup>
+          <col style={{ width: "5%" }} />   {/* ITEM */}
+          <col style={{ width: "20%" }} />  {/* ACTO */}
+          <col style={{ width: "10%" }} />  {/* N° ESCRITURA */}
+          <col style={{ width: "10%" }} />  {/* FECHA */}
+          <col style={{ width: "10%" }} />  {/* MATRÍCULA */}
+          <col style={{ width: "10%" }} />  {/* NOTA DEVOLUTIVA */}
+          <col style={{ width: isAdmin ? "25%" : "35%" }} />  {/* MOTIVO */}
+          {isAdmin && <col style={{ width: "10%" }} />}  {/* ACCIONES */}
+        </colgroup>
         <thead>
           <tr style={{ background: "#166534", color: "white", textTransform: "uppercase" }}>
-            <th style={{ padding: "16px", textAlign: "left" }}>ITEM</th>
-            <th style={{ padding: "16px", textAlign: "left" }}>ACTO</th>
-            <th style={{ padding: "16px", textAlign: "left" }}>N° ESCRITURA</th>
-            <th style={{ padding: "16px", textAlign: "left" }}>FECHA</th>
-            <th style={{ padding: "16px", textAlign: "left" }}>MATRÍCULA</th>
-            <th style={{ padding: "16px", textAlign: "left" }}>NOTA DEVOLUTIVA</th>
-            <th style={{ padding: "16px", textAlign: "left" }}>MOTIVO</th>
-            {isAdmin && <th style={{ padding: "16px", textAlign: "center" }}>ACCIONES</th>}
+            <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>ITEM</th>
+            <th className="celda-texto" style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>ACTO</th>
+            <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>N° ESCRITURA</th>
+            <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>FECHA</th>
+            <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>MATRÍCULA</th>
+            <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>NOTA DEVOLUTIVA</th>
+            <th className="celda-texto" style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>MOTIVO</th>
+            {isAdmin && <th style={{ padding: "12px 10px", textAlign: "center", fontSize: "0.85rem" }}>ACCIONES</th>}
           </tr>
         </thead>
         <tbody>
           {escrituras.map((r) => (
             <tr key={r.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
-              <td style={{ padding: "16px" }}>{r.item}</td>
-              <td style={{ padding: "16px" }}>{r.acto}</td>
-              <td style={{ padding: "16px" }}>{r.numeroEscritura}</td>
-              <td style={{ padding: "16px" }}>{r.fechaEscritura}</td>
-              <td style={{ padding: "16px" }}>{r.matricula}</td>
-              <td style={{ padding: "16px", color: r.notaDevolutiva === "SI" ? "#b91c1c" : "#166534", fontWeight: "bold" }}>{r.notaDevolutiva}</td>
-              <td style={{ padding: "16px" }}>{r.motivo || ""}</td>
+              <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.item}</td>
+              <td className="celda-texto" style={{ padding: "12px 10px", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4" }}>{r.acto}</td>
+              <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.numeroEscritura}</td>
+              <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.fechaEscritura}</td>
+              <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.matricula}</td>
+              <td style={{ padding: "12px 10px", color: r.notaDevolutiva === "SI" ? "#b91c1c" : "#166534", fontWeight: "bold", whiteSpace: "nowrap" }}>{r.notaDevolutiva}</td>
+              <td className="celda-texto" style={{ padding: "12px 10px", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4" }}>{r.motivo || ""}</td>
               {isAdmin && (
                 <td style={{ padding: "16px", textAlign: "center" }}>
                   <button onClick={() => editEntry(r)} style={{ background: "#d97706", color: "white", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", marginRight: "0.5rem" }}>
@@ -238,6 +254,7 @@ export default function EscriturasPendientes({ isAdmin }) {
           ))}
         </tbody>
       </table>
+      </div>
 
       {escrituras.length === 0 && (
         <p style={{ textAlign: "center", padding: "40px 20px", color: "#6b7280", fontSize: "1.2rem" }}>

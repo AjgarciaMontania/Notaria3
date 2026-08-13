@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { formatCOP, formatNumberWithPoints, parseNumberWithoutPoints } from "../utils/formatters";
 import { forwardRef, useImperativeHandle } from "react";
 import { ACTOS_CONFIG } from "../utils/actosConfig";
+import { getTasaHistorica } from "../utils/tasasHistoricas";
 
 // ── Tarifas ORIP 2026 (RES-2026-001726-6) ──────────────────────────────────
 const SIN_CUANTIA_BASE = 29500;
@@ -23,16 +24,14 @@ const FEE_CONSTANTS = {
 const HONORARIOS_RATES = { FIRST: 35000, SECOND_TO_THIRD: 25000, REMAINING: 20000 };
 
 // ── Mora por extemporaneidad (Art. 25 Ley 1579/2012 + Sec. Hacienda Caquetá) ──
-// Tasa derivada del ejemplo real: $26.000 mora sobre $1.383.500 tributaria en 31 días
-// = ~22.13% anual simple  →  actualizar si la Gobernación cambia la tasa vigente
-const MORA_ANNUAL_RATE  = 0.2213; // 22.13% anual simple
-const MORA_RATE_DIARIA  = MORA_ANNUAL_RATE / 365; // ≈ 0.0606% diario
-const DIAS_GRACIA       = 60;     // Días desde la fecha de escritura sin mora
+// Tasa derivada de recibos reales Gobernación Caquetá 2026:
+// Escritura 232: $250.000 tributaria × 106 días mora = $18.000 → ~24% anual
+// Actualizar MORA_ANNUAL_RATE si la Gobernación comunica nuevo porcentaje.
+// Tasa exacta: 18.000 mora / (250.000 base × 106 días) × 365 = 24.79%
+const MORA_ANNUAL_RATE = 0.2479; // 24.79% anual simple
+const MORA_RATE_DIARIA = MORA_ANNUAL_RATE / 365;
 
-/**
- * Días calendario entre dos fechas "YYYY-MM-DD".
- * Usa mediodía para evitar problemas de horario de verano (DST).
- */
+/** Días calendario entre dos fechas "YYYY-MM-DD" (usa mediodía para evitar DST). */
 const diasEntre = (desde, hasta) => {
   if (!desde || !hasta) return 0;
   const d1 = new Date(desde + "T12:00:00");
@@ -41,29 +40,43 @@ const diasEntre = (desde, hasta) => {
 };
 
 /**
- * Calcula los intereses de mora para una escritura.
- * @param {string} fechaEscritura  - "YYYY-MM-DD", fecha en que fue otorgada la escritura
- * @param {number} tributaria      - Impuesto de registro (base de la mora)
- * @param {string} fechaPago       - "YYYY-MM-DD", fecha en que se va a pagar/registrar
- * @returns {number} mora en pesos (redondeada a la centena más cercana)
+ * Fecha de vencimiento del plazo legal: exactamente 2 meses calendario
+ * después de la fecha de escritura (Art. 8 Ley 1579/2012).
  */
-const calcularMoraEscritura = (fechaEscritura, tributaria, fechaPago) => {
-  if (!fechaEscritura || !tributaria || tributaria <= 0) return 0;
-  const diasTotales = diasEntre(fechaEscritura, fechaPago);
-  const diasMora    = Math.max(0, diasTotales - DIAS_GRACIA);
-  if (diasMora === 0) return 0;
-  return Math.round(Math.round(tributaria * MORA_RATE_DIARIA * diasMora) / 100) * 100;
+const fechaVencimiento = (fechaEscritura) => {
+  const d = new Date(fechaEscritura + "T12:00:00");
+  d.setMonth(d.getMonth() + 2);
+  return d.toISOString().split("T")[0];
+};
+
+/**
+ * Calcula días vencidos e intereses de mora para una escritura.
+ * @param {number} tasaAnual - tasa anual en decimal (ej: 0.2784). Si no se pasa, usa MORA_ANNUAL_RATE.
+ * @returns {{ diasVencidos: number, mora: number }}
+ */
+const calcularMoraEscritura = (fechaEscritura, tributaria, fechaPago, tasaAnual = MORA_ANNUAL_RATE) => {
+  if (!fechaEscritura || !tributaria || tributaria <= 0) return { diasVencidos: 0, mora: 0 };
+  const venc         = fechaVencimiento(fechaEscritura);
+  const diasVencidos = Math.max(0, diasEntre(venc, fechaPago));
+  if (diasVencidos === 0) return { diasVencidos: 0, mora: 0 };
+  const rateDiaria = tasaAnual / 365;
+  // La Gobernación del Caquetá redondea la mora al millar más cercano
+  // (confirmado en todos los recibos: $31.000, $28.000, $37.000, $3.000…)
+  const mora = Math.round(tributaria * rateDiaria * diasVencidos / 1000) * 1000;
+  return { diasVencidos, mora };
 };
 // ───────────────────────────────────────────────────────────────────────────
 
-const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, ref) => {
+const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, tasaMoraDefault }, ref) => {
+  // tasaMoraDefault viene de Firestore vía App.jsx; si no llega, usa la constante local
+  const TASA_EFECTIVA = tasaMoraDefault ?? MORA_ANNUAL_RATE;
   useImperativeHandle(ref, () => ({ calcularTodo, exportToExcel }));
 
-  const calculateNotaryFee = (valor) => {
+  // Derecho base sin el 2% de conservación documental (se aplica al final sobre el total)
+  const calcOripBase = (valor) => {
     if (valor <= 0) return 0;
     const tier = FEE_CONSTANTS.TIERS.find((t) => valor <= t.limit);
-    const base = tier.rate ? valor * tier.rate : FEE_CONSTANTS.BASE_FEE;
-    return Math.round(base * FEE_CONSTANTS.ADDITIONAL_RATE);
+    return tier.rate ? valor * tier.rate : FEE_CONSTANTS.BASE_FEE;
   };
 
   const calcularTodo = (dineroEnviadoStr) => {
@@ -103,38 +116,92 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, 
       let tributaria = 0;
       let orip       = 0;
 
-      if (config.tributariaRate !== undefined) {
+      if (config.tributariaManual) {
+        // tributaria ingresada manualmente por el usuario en la celda de la tabla
+        tributaria = parseNumberWithoutPoints(row.tributariaManual || "0");
+      } else if (config.tributariaRate !== undefined) {
         tributaria = Math.round(valor * config.tributariaRate);
       } else if (config.tributaria !== undefined) {
         tributaria = config.tributaria;
       }
 
+      // Cálculo ORIP según RES-2026-001726-6 Párrafo 8:
+      // 2% de conservación documental se aplica sobre el subtotal completo
+      // (base + extras + folios adicionales), NO solo sobre el derecho base.
       if (config.oripTipo === "cuantia") {
-        orip = calculateNotaryFee(valor) + (config.oripExtras || 0);
+        const base    = calcOripBase(valor) + (config.oripExtras || 0);
+        const subtotal = base + FOLIO_ADICIONAL * foliosAdic;
+        orip = Math.round(subtotal * FEE_CONSTANTS.ADDITIONAL_RATE / 100) * 100;
       } else if (config.oripTipo === "sin_cuantia") {
-        orip = SIN_CUANTIA_BASE;
+        const numActos  = row.numActos || 1;
+        const subtotal  = SIN_CUANTIA_BASE * numActos + FOLIO_ADICIONAL * foliosAdic;
+        orip = Math.round(subtotal * FEE_CONSTANTS.ADDITIONAL_RATE / 100) * 100;
       }
 
-      orip += FOLIO_ADICIONAL * foliosAdic;
-      orip  = Math.round(orip / 100) * 100;
-
-      const totalRow = tributaria + orip;
       tributariaTotal += tributaria;
       oripTotal       += orip;
 
-      // ── Mora por esta escritura (sobre su tributaria) ──────────────────────
-      const moraPagada = fechaPago
-        ? calcularMoraEscritura(row.fechaEscritura, tributaria, fechaPago)
-        : 0;
-      moraTotal += moraPagada;
-      // ───────────────────────────────────────────────────────────────────────
-
-      return { ...row, tributaria, orip, total: totalRow, mora: moraPagada };
+      return { ...row, tributaria, orip, _base: tributaria + orip, mora: 0, diasVencidos: 0 };
     });
 
-    const subtotal        = tributariaTotal + oripTotal + igacTotal + saberTotal;
-    const retiros         = Math.round(Math.ceil((subtotal + honorarios + moraTotal) / 600000) * 3000);
-    const totalConsignar  = subtotal + honorarios + moraTotal + retiros;
+    // ── PASO 2: mora agrupada por escritura ───────────────────────────────────
+    // Actos con el mismo número+fecha de escritura comparten la base de mora
+    // (así lo liquida la Gobernación: mora sobre tributaria combinada por escritura)
+    const grupos = new Map();
+    updatedRows.forEach((row, idx) => {
+      if (row.tributaria === null || row.tributaria <= 0 || !row.fechaEscritura) return;
+      const numEsc = row.numeroEscritura?.trim();
+      const key    = numEsc ? `${numEsc}||${row.fechaEscritura}` : `__solo__${idx}`;
+      if (!grupos.has(key)) {
+        grupos.set(key, { fechaEscritura: row.fechaEscritura, tasaAnual: null, indices: [], total: 0 });
+      }
+      const g = grupos.get(key);
+      g.indices.push(idx);
+      g.total += row.tributaria;
+      // Primera tasa editada manualmente en el grupo tiene prioridad
+      if (row.tasaAnual != null && g.tasaAnual == null) g.tasaAnual = row.tasaAnual;
+    });
+
+    const moraIdx   = new Array(updatedRows.length).fill(0);
+    const diasIdx   = new Array(updatedRows.length).fill(0);
+    const tasaIdx   = new Array(updatedRows.length).fill(TASA_EFECTIVA);
+
+    grupos.forEach((g) => {
+      if (!fechaPago || g.total <= 0) return;
+      // Si el usuario no editó la tasa, buscar en historial por fecha de vencimiento + año de pago
+      const fv   = fechaVencimiento(g.fechaEscritura);
+      const tasa = g.tasaAnual ?? getTasaHistorica(fv, fechaPago) ?? TASA_EFECTIVA;
+      const { diasVencidos, mora: moraGrupo } = calcularMoraEscritura(g.fechaEscritura, g.total, fechaPago, tasa);
+      if (moraGrupo === 0) return;
+      moraTotal += moraGrupo;
+
+      // Distribuir mora proporcionalmente entre los actos del grupo
+      let asignada = 0;
+      g.indices.forEach((idx, i) => {
+        let parte;
+        if (i === g.indices.length - 1) {
+          parte = moraGrupo - asignada; // remanente exacto al último
+        } else {
+          parte = Math.round(moraGrupo * (updatedRows[idx].tributaria / g.total) / 100) * 100;
+          asignada += parte;
+        }
+        moraIdx[idx]  = parte;
+        diasIdx[idx]  = diasVencidos;
+        tasaIdx[idx]  = tasa;
+      });
+    });
+
+    // ── PASO 3: aplicar mora a cada fila ─────────────────────────────────────
+    const updatedRowsFinal = updatedRows.map((row, idx) => {
+      if (row.tributaria === null) return row;
+      const { _base, ...rest } = row;
+      return { ...rest, mora: moraIdx[idx], diasVencidos: diasIdx[idx], tasaAnual: tasaIdx[idx], total: _base + moraIdx[idx] };
+    });
+
+    // SUBTOTAL = suma de todos los totales de fila (tributaria + ORIP + mora incluida)
+    const subtotal        = tributariaTotal + oripTotal + igacTotal + saberTotal + moraTotal;
+    const retiros         = Math.round(Math.ceil((subtotal + honorarios) / 600000) * 3000);
+    const totalConsignar  = subtotal + honorarios + retiros;
 
     const dineroEnviadoNum = parseNumberWithoutPoints(dineroEnviadoStr || "0");
     const sobrante         = dineroEnviadoNum - totalConsignar;
@@ -143,20 +210,14 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, 
     const hayMora = moraTotal > 0;
 
     setRows([
-      ...updatedRows,
+      ...updatedRowsFinal,
       { isSummary: true, label: "SUBTOTAL",  value: subtotal },
       { isSummary: true, label: "HONORARIOS", value: honorarios },
-      ...(hayMora ? [{
-        isSummary: true,
-        label: `⚠️ INTERESES DE MORA (${DIAS_GRACIA} días gracia · ${(MORA_ANNUAL_RATE * 100).toFixed(2)}% anual)`,
-        value: moraTotal,
-        isMora: true,
-      }] : []),
       { isSummary: true, label: "RETIROS",           value: retiros },
       { isSummary: true, label: "TOTAL A CONSIGNAR", value: totalConsignar },
       { isAdditional: true, label: "TOTAL GASTOS",   value: totalConsignar },
-      { isAdditional: true, label: "DINERO ENVIADO",  value: dineroEnviadoNum },
-      { isAdditional: true, label: "SOBRANTE",        value: sobrante },
+      { isAdditional: true, label: "DINERO ENVIADO",  value: dineroEnviadoNum, isDinero: true },
+      { isAdditional: true, label: "SOBRANTE",        value: sobrante, isSobrante: true },
     ]);
   };
 
@@ -170,6 +231,8 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, 
           'FOLIOS ADIC.': '',
           'VALOR ACTO': '',
           'VALOR TRIBUTARIA': '',
+          'DÍAS VENC.': '',
+          '% INTERÉS': '',
           'MORA': '',
           'VALOR ORIP': row.label,
           TOTAL: formatCOP(row.value).replace('$', ''),
@@ -183,6 +246,8 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, 
           'FOLIOS ADIC.': '',
           'VALOR ACTO': '',
           'VALOR TRIBUTARIA': '',
+          'DÍAS VENC.': '',
+          '% INTERÉS': '',
           'MORA': '',
           'VALOR ORIP': '',
           TOTAL: '',
@@ -193,8 +258,11 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, 
         'NÚMERO DE ESCRITURA': row.numeroEscritura,
         'FECHA DE ESCRITURA': row.fechaEscritura,
         'FOLIOS ADIC.': row.foliosAdicionales || '',
+        '# ACTOS': row.numActos && row.numActos > 1 ? row.numActos : '',
         'VALOR ACTO': row.valorActo,
         'VALOR TRIBUTARIA': row.tributaria ? formatCOP(row.tributaria).replace('$', '') : '',
+        'DÍAS VENC.': row.diasVencidos || '',
+        '% INTERÉS': row.mora > 0 ? `${(MORA_ANNUAL_RATE * 100).toFixed(0)}%` : '',
         'MORA': row.mora ? formatCOP(row.mora).replace('$', '') : '',
         'VALOR ORIP': row.orip ? formatCOP(row.orip).replace('$', '') : '',
         TOTAL: row.total ? formatCOP(row.total).replace('$', '') : '',
@@ -209,15 +277,37 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, 
 
   return (
     <div id="output-section">
-      <table id="result-table">
+      {rows.length > 0 && (
+        <p className="scroll-hint">← Desliza la tabla hacia los lados para ver todas las columnas →</p>
+      )}
+      <div className="table-scroll">
+      <table id="result-table" style={{ width: "100%", tableLayout: "fixed" }}>
+        {/* colgroup debe ser hijo directo de <table>, antes de <thead> */}
+        <colgroup>
+          <col style={{ width: "16%" }} />  {/* ACTO */}
+          <col style={{ width: "10%" }} />  {/* NRO ESCRITURA */}
+          <col style={{ width: "11%" }} />  {/* FECHA */}
+          <col style={{ width: "4%" }} />   {/* FOLIOS */}
+          <col style={{ width: "3%" }} />   {/* # ACTOS */}
+          <col style={{ width: "9%" }} />   {/* VALOR ACTO */}
+          <col style={{ width: "8%" }} />   {/* TRIBUTARIA */}
+          <col style={{ width: "3%" }} />   {/* DÍAS VENC */}
+          <col style={{ width: "6%" }} />   {/* % INTERÉS */}
+          <col style={{ width: "6%" }} />   {/* MORA */}
+          <col style={{ width: "7%" }} />   {/* ORIP */}
+          <col style={{ width: "9%" }} />   {/* TOTAL */}
+        </colgroup>
         <thead>
           <tr>
             <th>ACTO</th>
-            <th>NÚMERO DE ESCRITURA</th>
-            <th>FECHA DE ESCRITURA</th>
+            <th>N° ESCRITURA</th>
+            <th>FECHA</th>
             <th>FOLIOS ADIC.</th>
+            <th title="Número de actos sin cuantía en el documento (editable)"># ACTOS</th>
             <th>VALOR ACTO</th>
-            <th>VALOR TRIBUTARIA</th>
+            <th>TRIBUTARIA</th>
+            <th>DÍAS VENC.</th>
+            <th>% INTERÉS</th>
             <th>MORA</th>
             <th>VALOR ORIP</th>
             <th>TOTAL</th>
@@ -232,16 +322,22 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, 
                 : {};
               return (
                 <tr key={index} className={className} style={moraStyle}>
-                  <td colSpan={7}></td>
-                  <td>{row.label}</td>
-                  <td>{formatCOP(row.value)}</td>
+                  <td colSpan={10}></td>
+                  <td style={{
+                    whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.3", fontWeight: "bold",
+                    color: row.isDinero ? "#166534" : row.isSobrante ? (row.value >= 0 ? "#166534" : "#b91c1c") : undefined
+                  }}>{row.label}</td>
+                  <td style={{
+                    whiteSpace: "nowrap", fontWeight: "bold",
+                    color: row.isDinero ? "#166534" : row.isSobrante ? (row.value >= 0 ? "#166534" : "#b91c1c") : undefined
+                  }}>{formatCOP(row.value)}</td>
                 </tr>
               );
             }
             if (row.isNote) {
               return (
                 <tr key={index} style={{ backgroundColor: "#f0fdf4", fontSize: "0.95rem", color: "#166534" }}>
-                  <td colSpan={9} style={{ textAlign: "center", fontStyle: "italic", padding: "12px" }}>
+                  <td colSpan={12} style={{ textAlign: "center", fontStyle: "italic", padding: "12px" }}>
                     {row.label}
                   </td>
                 </tr>
@@ -259,11 +355,12 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, 
                     onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, numeroEscritura: e.target.value } : r))}
                   />
                 </td>
-                <td>
+                <td style={{ overflow: "visible", whiteSpace: "nowrap" }}>
                   <input
                     type="date"
                     value={row.fechaEscritura}
                     onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, fechaEscritura: e.target.value } : r))}
+                    style={{ minWidth: "120px", width: "100%" }}
                   />
                 </td>
                 <td>
@@ -273,6 +370,18 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, 
                     value={row.foliosAdicionales}
                     onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, foliosAdicionales: parseInt(e.target.value) || 0 } : r))}
                   />
+                </td>
+                <td style={{ textAlign: "center" }}>
+                  {ACTOS_CONFIG[row.acto]?.oripTipo === "sin_cuantia" ? (
+                    <input
+                      type="number"
+                      min="1"
+                      title="Número de actos sin cuantía en el documento"
+                      style={{ width: "55px", textAlign: "center", padding: "6px", border: "1px solid #d1d5db", borderRadius: "4px" }}
+                      value={row.numActos ?? 1}
+                      onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, numActos: parseInt(e.target.value) || 1 } : r))}
+                    />
+                  ) : <span style={{ color: "#9ca3af" }}>—</span>}
                 </td>
                 <td>
                   <input
@@ -290,6 +399,29 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, 
                   />
                 </td>
                 <td>{row.tributaria !== null ? formatCOP(row.tributaria) : ""}</td>
+                <td style={mostrarMora ? { color: "#92400e", fontWeight: "bold", textAlign: "center" } : { color: "#9ca3af", textAlign: "center" }}>
+                  {mostrarMora ? row.diasVencidos : (row.tributaria !== null ? "—" : "")}
+                </td>
+                <td style={{ textAlign: "center" }}>
+                  {row.tributaria !== null && row.diasVencidos > 0 ? (
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      title="Tasa anual %. Edita y vuelve a Calcular para actualizar."
+                      style={{
+                        width: "70px", textAlign: "center", fontWeight: "bold",
+                        color: "#92400e", border: "1px solid #d97706",
+                        borderRadius: "4px", padding: "4px", background: "#fffbeb"
+                      }}
+                      value={parseFloat(((row.tasaAnual ?? TASA_EFECTIVA) * 100).toFixed(2))}
+                      onChange={(e) => {
+                        const pct = parseFloat(e.target.value) || 0;
+                        setRows(prev => prev.map((r, i) => i === index ? { ...r, tasaAnual: pct / 100 } : r));
+                      }}
+                    />
+                  ) : (row.tributaria !== null ? <span style={{ color: "#9ca3af" }}>—</span> : "")}
+                </td>
                 <td style={mostrarMora ? { color: "#92400e", fontWeight: "bold" } : { color: "#9ca3af" }}>
                   {mostrarMora
                     ? formatCOP(row.mora)
@@ -302,25 +434,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago }, 
           })}
         </tbody>
       </table>
-
-      {/* Nota explicativa de mora */}
-      {rows.some(r => r.isMora) && (
-        <div style={{
-          margin: "1rem 0",
-          padding: "14px 20px",
-          background: "#fef3c7",
-          border: "1px solid #d97706",
-          borderRadius: "10px",
-          fontSize: "0.9rem",
-          color: "#78350f",
-          lineHeight: "1.5"
-        }}>
-          <strong>⚠️ ESCRITURAS CON MORA:</strong> Algunas escrituras superaron los 60 días desde su otorgamiento.
-          La Gobernación del Caquetá (Sec. de Hacienda) cobra intereses de mora al <strong>{(MORA_ANNUAL_RATE * 100).toFixed(2)}% anual simple</strong> sobre el impuesto de registro.
-          Tasa vigente según recibo No. 185000066725 del 24/02/2026.{" "}
-          <em>Actualizar la constante <code>MORA_ANNUAL_RATE</code> si la Gobernación comunica un nuevo porcentaje.</em>
-        </div>
-      )}
+      </div>
     </div>
   );
 });

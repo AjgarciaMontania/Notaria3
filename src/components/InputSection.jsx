@@ -5,10 +5,12 @@ export default function InputSection({
   hipoteca, onHipotecaChange,
   saber, onSaberChange,
   igac, onIgacChange,
-  donacion, onDonacionChange,
+  donacionParticular, onDonacionParticularChange,
+  donacionPublica, onDonacionPublicaChange,
   permuta, onPermutaChange,
   sucesion, onSucesionChange,
   sinCuantia, onSinCuantiaChange,
+  cancelEnaje, onCancelEnajeChange,
   dineroEnviado, onDineroChange,
   fechaPago, onFechaPagoChange,
   onIngresar, onCalcular, onLimpiar, onExportar, calcularDisabled
@@ -47,8 +49,18 @@ export default function InputSection({
         {/* Fila 3 */}
         <div className="input-row three-columns">
           <div className="input-group">
-            <label>Donación:</label>
-            <input type="number" placeholder="Cantidad" value={donacion} onChange={onDonacionChange} min="0" />
+            <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              Donación Particular:
+              <span title="Beneficiario es persona natural o jurídica privada → tributaria 1%" style={{ cursor: "help", background: "#166534", color: "white", borderRadius: "50%", width: "18px", height: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: "bold", flexShrink: 0 }}>?</span>
+            </label>
+            <input type="number" placeholder="Cantidad" value={donacionParticular} onChange={onDonacionParticularChange} min="0" />
+          </div>
+          <div className="input-group">
+            <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              Donación Entidad Pública:
+              <span title="Beneficiario es entidad gubernamental (alcaldía, gobernación, etc.) → tributaria 0.5%" style={{ cursor: "help", background: "#166534", color: "white", borderRadius: "50%", width: "18px", height: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: "bold", flexShrink: 0 }}>?</span>
+            </label>
+            <input type="number" placeholder="Cantidad" value={donacionPublica} onChange={onDonacionPublicaChange} min="0" />
           </div>
           <div className="input-group">
             <label>Permuta:</label>
@@ -65,6 +77,16 @@ export default function InputSection({
           <div className="input-group">
             <label>Acto sin cuantía (poder, PH, etc.):</label>
             <input type="number" placeholder="Cantidad" value={sinCuantia} onChange={onSinCuantiaChange} min="0" />
+          </div>
+          <div className="input-group">
+            <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              Cancelación Enajenación:
+              <span
+                title="ORIP cobra $60.200 (2 actos: levantamiento + desistimiento). Tributaria: la Gobernación la calcula sobre el avalúo catastral (IGAC) — ingrésala manualmente en la celda naranja de la tabla cuando te la informen."
+                style={{ cursor: "help", background: "#166534", color: "white", borderRadius: "50%", width: "18px", height: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: "bold", flexShrink: 0 }}
+              >?</span>
+            </label>
+            <input type="number" placeholder="Cantidad" value={cancelEnaje} onChange={onCancelEnajeChange} min="0" />
           </div>
         </div>
 

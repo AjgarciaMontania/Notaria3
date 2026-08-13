@@ -2,8 +2,11 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import InputSection from "./components/InputSection";
 import ResultTable from "./components/ResultTable";
+import { ACTOS_CONFIG } from "./utils/actosConfig";
 import EscriturasPendientes from "./components/EscriturasPendientes";
 import Evidencias from "./components/Evidencias";
+import TasaMoraPanel from "./components/TasaMoraPanel";
+import { useTasaMora } from "./hooks/useTasaMora";
 
 import icontecLogo from './assets/icontec-iso9001.png';
 import iqnetLogo from './assets/iqnet.png';
@@ -24,10 +27,12 @@ const COUNTS_INITIAL = {
   hipoteca: "",
   saber: "",
   igac: "",
-  donacion: "",
+  donacionParticular: "",
+  donacionPublica: "",
   permuta: "",
   sucesion: "",
   sinCuantia: "",
+  cancelEnaje: "",
 };
 
 const TAB_STYLE_BASE = {
@@ -111,6 +116,7 @@ function App() {
   }, [handleAdminLogin]);
   // ────────────────────────────────────────────────────────────────────────────
 
+  const { tasaAnual, meta, loading: loadingTasa } = useTasaMora();
   const resultRef = useRef();
 
   const handleCountChange = useCallback((field) => (e) => {
@@ -129,6 +135,7 @@ function App() {
 
     const newRows = [];
     const add = (acto, count) => {
+      const config = ACTOS_CONFIG[acto] || {};
       for (let i = 0; i < count; i++) {
         newRows.push({
           acto,
@@ -136,6 +143,8 @@ function App() {
           fechaEscritura: TODAY,
           foliosAdicionales: 0,
           valorActo: "",
+          // numActos: cuántos actos sin cuantía contiene este documento (editable en tabla)
+          numActos: config.oripTipo === "sin_cuantia" ? (config.oripCount || 1) : 1,
           tributaria: null,
           orip: null,
           total: null,
@@ -148,10 +157,12 @@ function App() {
     add("HIPOTECA CON BANCO AGRARIO", parsed.hipoteca);
     add("ESCRITURA PARA SABER", parsed.saber);
     add("TRAMITE IGAC", parsed.igac);
-    add("DONACIÓN", parsed.donacion);
+    add("DONACIÓN PARTICULAR", parsed.donacionParticular);
+    add("DONACIÓN ENTIDAD PÚBLICA", parsed.donacionPublica);
     add("PERMUTA", parsed.permuta);
     add("SUCESIÓN", parsed.sucesion);
     add("ACTO SIN CUANTÍA", parsed.sinCuantia);
+    add("CANCELACIÓN ENAJENACIÓN", parsed.cancelEnaje);
 
     setRows(newRows);
     setHasInserted(true);
@@ -199,7 +210,7 @@ function App() {
       <h1>NOTARÍA ÚNICA DE CARTAGENA DEL CHAIRA</h1>
 
       {/* PESTAÑAS */}
-      <div style={{ textAlign: "center", margin: "20px 0" }}>
+      <div className="tabs-nav">
         <button onClick={() => setActiveTab("liquidacion")} style={tabStyle(activeTab === "liquidacion")}>
           Liquidación Notarial
         </button>
@@ -213,13 +224,13 @@ function App() {
 
       {/* PANEL DE AUTENTICACIÓN (compartido para Escrituras y Evidencias) */}
       {isProtectedTab && !isAdmin && (
-        <div style={{ maxWidth: "400px", margin: "2rem auto", padding: "2rem", background: "#f3f4f6", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}>
+        <div style={{ maxWidth: "400px", width: "100%", margin: "2rem auto", padding: "2rem 1.5rem", background: "#f3f4f6", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}>
           <h3 style={{ textAlign: "center", color: "#166534", marginBottom: "1.5rem" }}>
             🔒 Acceso de Administrador
           </h3>
           {sessionExpired && (
             <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: "8px", padding: "10px 14px", marginBottom: "1rem", color: "#92400e", fontSize: "0.9rem" }}>
-              ⏱ Sesión cerrada automáticamente por inactividad (30 min).
+              ⏱ Sesión cerrada automáticamente por inactividad (5 min).
             </div>
           )}
           <label style={{ display: "block", fontWeight: "bold", marginBottom: "0.5rem", color: "#374151" }}>
@@ -248,7 +259,7 @@ function App() {
 
       {/* BARRA DE SESIÓN (cuando admin está activo en pestañas protegidas) */}
       {isProtectedTab && isAdmin && (
-        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", maxWidth: "1200px", margin: "0 auto 0.5rem", padding: "0 1rem", gap: "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", maxWidth: "1380px", margin: "0 auto 0.5rem", padding: "0 1rem", gap: "0.75rem" }}>
           <span style={{ color: "#166534", fontSize: "0.9rem", fontWeight: "bold" }}>
             ✅ Sesión admin activa · Cierre automático por inactividad en 5 min
           </span>
@@ -270,10 +281,12 @@ function App() {
             hipoteca={counts.hipoteca} onHipotecaChange={handleCountChange("hipoteca")}
             saber={counts.saber} onSaberChange={handleCountChange("saber")}
             igac={counts.igac} onIgacChange={handleCountChange("igac")}
-            donacion={counts.donacion} onDonacionChange={handleCountChange("donacion")}
+            donacionParticular={counts.donacionParticular} onDonacionParticularChange={handleCountChange("donacionParticular")}
+            donacionPublica={counts.donacionPublica} onDonacionPublicaChange={handleCountChange("donacionPublica")}
             permuta={counts.permuta} onPermutaChange={handleCountChange("permuta")}
             sucesion={counts.sucesion} onSucesionChange={handleCountChange("sucesion")}
             sinCuantia={counts.sinCuantia} onSinCuantiaChange={handleCountChange("sinCuantia")}
+            cancelEnaje={counts.cancelEnaje} onCancelEnajeChange={handleCountChange("cancelEnaje")}
             dineroEnviado={dineroEnviado} onDineroChange={handleDineroChange}
             fechaPago={fechaPago} onFechaPagoChange={handleFechaPagoChange}
             onIngresar={handleIngresar}
@@ -283,13 +296,31 @@ function App() {
             calcularDisabled={!hasInserted}
           />
 
+          {/* Indicador de tasa vigente (visible para todos) */}
+          {!loadingTasa && (
+            <div style={{ maxWidth: "1380px", margin: "0 auto 0.5rem", padding: "0 1rem", display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#6b7280" }}>
+              <span>📊 Tasa de mora vigente:</span>
+              <strong style={{ color: "#166534" }}>{(tasaAnual * 100).toFixed(2)}% anual</strong>
+              {meta?.fechaActualizacion && <span>· actualizada {meta.fechaActualizacion}</span>}
+              {isAdmin && <span style={{ color: "#d97706", marginLeft: "0.5rem" }}>· (editable abajo)</span>}
+            </div>
+          )}
+
           <ResultTable
             ref={resultRef}
             rows={rows}
             setRows={setRows}
             calcularDisabled={!hasInserted}
             fechaPago={fechaPago}
+            tasaMoraDefault={tasaAnual}
           />
+
+          {/* Panel admin para actualizar tasa */}
+          {isAdmin && (
+            <div style={{ maxWidth: "1380px", margin: "0 auto", padding: "0 1rem 2rem" }}>
+              <TasaMoraPanel meta={meta} loading={loadingTasa} />
+            </div>
+          )}
 
           <div id="notaria-info">
             <h2>Nuestra Ubicación</h2>

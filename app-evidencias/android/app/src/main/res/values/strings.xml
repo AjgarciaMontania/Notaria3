@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Evidencias Notaría</string>
+    <string name="title_activity_main">Evidencias Notaría</string>
+    <string name="package_name">co.gov.notaria.cartagenadelchaira.evidencias</string>
+    <string name="custom_url_scheme">co.gov.notaria.cartagenadelchaira.evidencias</string>
+</resources>

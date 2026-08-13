@@ -25,8 +25,16 @@ export const ACTOS_CONFIG = {
     oripTipo: "none",
     honorarioContable: false,
   },
-  "DONACIÓN": {
-    tributariaRate: 0,
+  // Donación a particular → 1% tributaria
+  "DONACIÓN PARTICULAR": {
+    tributariaRate: 0.01,
+    oripTipo: "cuantia",
+    oripExtras: 0,
+    honorarioContable: true,
+  },
+  // Donación donde el beneficiario es entidad gubernamental → 0.5% tributaria
+  "DONACIÓN ENTIDAD PÚBLICA": {
+    tributariaRate: 0.005,
     oripTipo: "cuantia",
     oripExtras: 0,
     honorarioContable: true,
@@ -46,5 +54,25 @@ export const ACTOS_CONFIG = {
     tributariaRate: 0,
     oripTipo: "sin_cuantia",
     honorarioContable: false,
+  },
+  // Art. 11 RES-2026-001726-6: cancelación = sin cuantía en ORIP ($30.100)
+  // Tributaria: la Gobernación la calcula sobre el avalúo catastral (IGAC).
+  // Como el documento no tiene cuantía, el usuario la ingresa manualmente
+  // en la celda de la tabla una vez la Gobernación se la informe.
+  // Resolución de levantamiento de prohibición de enajenar (Ley 1537/2012)
+  // Tiene 2 actos en un mismo documento: levantamiento + desistimiento derecho preferencia
+  // ORIP: 2 × $30.100 = $60.200  |  Tributaria: manual (Gobernación usa avalúo catastral IGAC)
+  // Resolución levantamiento de prohibición de enajenar (Ley 1537/2012)
+  // Tiene 2 actos por defecto (levantamiento + desistimiento). El usuario
+  // puede cambiarlo en la columna "# ACTOS" de la tabla si el documento difiere.
+  // Tributaria: manual (Gobernación usa avalúo catastral del IGAC).
+  // Resolución levantamiento prohibición enajenar (Ley 1537/2012)
+  // Tributaria Gobernación: tarifa mínima fija $233.500 (confirmado recibos Hacienda)
+  // ORIP: 2 actos sin cuantía por defecto (editable en tabla)
+  "CANCELACIÓN ENAJENACIÓN": {
+    tributaria: 233500,
+    oripTipo: "sin_cuantia",
+    oripCount: 2,
+    honorarioContable: true,
   },
 };

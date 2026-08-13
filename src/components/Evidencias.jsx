@@ -112,7 +112,7 @@ export default function Evidencias({ isAdmin }) {
   const filesInCurrentFolder = files.filter(f => f.folder === currentFolder?.name);
 
   return (
-    <div className="input-card" style={{ maxWidth: "1200px", margin: "2rem auto" }}>
+    <div className="input-card" style={{ maxWidth: "1200px" }}>
       <h2 style={{ textAlign: "center", color: "#166534", marginBottom: "2rem" }}>
         📁 EVIDENCIAS NOTARIALES
       </h2>
@@ -125,7 +125,7 @@ export default function Evidencias({ isAdmin }) {
             placeholder="Nombre de nueva carpeta"
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
-            style={{ padding: "12px", width: "320px", borderRadius: "8px", border: "1px solid #ddd" }}
+            style={{ padding: "12px", width: "320px", maxWidth: "100%", borderRadius: "8px", border: "1px solid #ddd" }}
           />
           <button onClick={createFolder} style={{ padding: "12px 24px", background: "#166534", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}>
             ➕ Crear Carpeta
@@ -164,10 +164,10 @@ export default function Evidencias({ isAdmin }) {
       {/* CONTENIDO DE LA CARPETA SELECCIONADA */}
       {currentFolder && (
         <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "1.5rem" }}>
             <h3 style={{ margin: 0, color: "#166534" }}>📁 {currentFolder.name}</h3>
             {isAdmin && (
-              <div>
+              <div className="action-buttons" style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
                 <label
                   style={{
                     display: "inline-block",
@@ -175,8 +175,7 @@ export default function Evidencias({ isAdmin }) {
                     background: uploading ? "#9ca3af" : "#d97706",
                     color: "white",
                     borderRadius: "9999px",
-                    cursor: uploading ? "not-allowed" : "pointer",
-                    marginRight: "1rem"
+                    cursor: uploading ? "not-allowed" : "pointer"
                   }}
                 >
                   {uploading ? "⏳ Subiendo..." : "📤 Subir Archivos"}
@@ -208,7 +207,10 @@ export default function Evidencias({ isAdmin }) {
               {isAdmin && " Sube archivos usando el botón naranja."}
             </p>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <>
+            <p className="scroll-hint">← Desliza la tabla hacia los lados para ver todas las columnas →</p>
+            <div className="table-scroll">
+            <table className="tabla-compacta" style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#166534", color: "white" }}>
                   <th style={{ padding: "14px", textAlign: "left" }}>Nombre</th>
@@ -282,6 +284,8 @@ export default function Evidencias({ isAdmin }) {
                   })}
               </tbody>
             </table>
+            </div>
+            </>
           )}
 
           <div style={{ textAlign: "center", marginTop: "2rem" }}>

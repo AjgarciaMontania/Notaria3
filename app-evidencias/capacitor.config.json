@@ -1,0 +1,14 @@
+{
+  "appId": "co.gov.notaria.cartagenadelchaira.evidencias",
+  "appName": "Evidencias Notaría",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#166534"
+    }
+  }
+}
