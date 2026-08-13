@@ -624,3 +624,231 @@ input:focus {
   color: var(--gris);
   margin-top: 4px;
 }
+
+/* ── Pestañas inferiores ────────────────────────────────────────────────── */
+.con-pestanas {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.cuerpo-pestanas {
+  flex: 1;
+  min-height: 0;
+}
+
+.pestanas {
+  display: flex;
+  border-top: 1px solid var(--borde);
+  background: white;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  flex-shrink: 0;
+}
+
+.pestanas button {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 4px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--gris);
+  cursor: pointer;
+}
+
+.pestanas button.activa {
+  color: var(--verde);
+}
+
+.pestana-icono {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+/* Contador de pendientes sobre el icono */
+.pestana-globo {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  margin-left: 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--rojo);
+  color: white;
+  font-size: 0.68rem;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* ── Filtros ────────────────────────────────────────────────────────────── */
+.filtros {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chip {
+  flex: 1;
+  padding: 9px 10px;
+  border: 1px solid var(--borde);
+  border-radius: 9999px;
+  background: white;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--gris);
+  cursor: pointer;
+}
+
+.chip-activo {
+  background: var(--verde);
+  border-color: var(--verde);
+  color: white;
+}
+
+/* ── Tarjeta de escritura ───────────────────────────────────────────────── */
+.tarjeta-escritura {
+  background: white;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tarjeta-escritura.enviada {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.escritura-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.escritura-cabecera input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  accent-color: var(--verde);
+}
+
+.escritura-titulo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.escritura-titulo strong {
+  font-size: 1rem;
+  color: var(--verde);
+}
+
+.escritura-titulo small {
+  font-size: 0.82rem;
+  color: var(--texto);
+  overflow-wrap: anywhere;
+}
+
+.etiqueta-roja {
+  background: #fee2e2;
+  color: var(--rojo);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.escritura-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: var(--gris);
+}
+
+.escritura-motivo {
+  font-size: 0.8rem;
+  color: #92400e;
+  background: #fffbeb;
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+
+.escritura-envio {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid #86efac;
+  padding-top: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--verde);
+}
+
+.escritura-envio .boton {
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  min-height: 0;
+}
+
+/* ── Formulario de escritura nueva ──────────────────────────────────────── */
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.campo input,
+.campo select {
+  width: 100%;
+  font-size: 16px;
+  font-family: inherit;
+  padding: 13px;
+  border: 2px solid var(--borde);
+  border-radius: 10px;
+  background: #fbfbfb;
+}
+
+.campo select:focus,
+.campo input:focus {
+  outline: none;
+  border-color: var(--verde);
+  background: white;
+}
+
+.pie-titulo {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--verde);
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.pie-fijo .fila-botones {
+  margin-bottom: 8px;
+}
+
+.item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.item input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  accent-color: var(--verde);
+}

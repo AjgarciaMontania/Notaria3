@@ -3,6 +3,11 @@ import { useState, useEffect } from "react";
 import * as XLSX from 'xlsx';
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
+import {
+  subirSoporteYMarcarEnviadas,
+  revertirEnvio,
+  formatoFechaEnvio,
+} from "../utils/soportesEscrituras";
 
 // Función auxiliar para convertir fecha de Excel a string "YYYY-MM-DD"
 const excelDateToString = (value) => {
@@ -30,6 +35,75 @@ export default function EscriturasPendientes({ isAdmin }) {
     motivo: "",
   });
   const [editingItem, setEditingItem] = useState(null);
+
+  // ── Envío a la notaría ────────────────────────────────────────────────────
+  // Un mismo soporte puede amparar varias escrituras, así que primero se
+  // seleccionan las filas y después se adjunta un único archivo para todas.
+  const [seleccion, setSeleccion] = useState([]);   // ids de escrituras marcadas
+  const [subiendo, setSubiendo] = useState(false);
+  const [aviso, setAviso] = useState(null);
+
+  const mostrarAviso = (tipo, texto, ms = 5000) => {
+    setAviso({ tipo, texto });
+    setTimeout(() => setAviso(null), ms);
+  };
+
+  const alternarSeleccion = (id) => {
+    setSeleccion((previos) =>
+      previos.includes(id) ? previos.filter((x) => x !== id) : [...previos, id]
+    );
+  };
+
+  const pendientes = escrituras.filter((e) => !e.enviado);
+  const todasPendientesMarcadas =
+    pendientes.length > 0 && pendientes.every((e) => seleccion.includes(e.id));
+
+  const alternarTodas = () => {
+    setSeleccion(todasPendientesMarcadas ? [] : pendientes.map((e) => e.id));
+  };
+
+  const adjuntarSoporte = async (e) => {
+    const archivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!archivo) return;
+
+    const elegidas = escrituras.filter((x) => seleccion.includes(x.id));
+    if (elegidas.length === 0) return;
+
+    setSubiendo(true);
+    try {
+      const { cantidad } = await subirSoporteYMarcarEnviadas(archivo, elegidas);
+      setSeleccion([]);
+      mostrarAviso(
+        "ok",
+        `${cantidad} ${cantidad === 1 ? "escritura marcada como enviada" : "escrituras marcadas como enviadas"} con el soporte "${archivo.name}"`
+      );
+    } catch (error) {
+      console.error(error);
+      mostrarAviso("error", `No se pudo adjuntar el soporte: ${error.message}`, 9000);
+    } finally {
+      setSubiendo(false);
+    }
+  };
+
+  const devolverAPendiente = async (registro) => {
+    const texto =
+      `¿Devolver la escritura ${registro.numeroEscritura} al estado pendiente?\n\n` +
+      `Se quitará el soporte "${registro.soporteNombre || ""}". Si ninguna otra ` +
+      `escritura lo está usando, el archivo también se eliminará.`;
+    if (!window.confirm(texto)) return;
+    try {
+      const { archivoBorrado } = await revertirEnvio(registro, escrituras);
+      mostrarAviso(
+        "ok",
+        archivoBorrado
+          ? "Escritura devuelta a pendiente y soporte eliminado."
+          : "Escritura devuelta a pendiente. El soporte sigue disponible para las demás."
+      );
+    } catch (error) {
+      mostrarAviso("error", `No se pudo revertir: ${error.message}`, 9000);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "escrituras"), (querySnapshot) => {
@@ -111,6 +185,11 @@ export default function EscriturasPendientes({ isAdmin }) {
       MATRICULA: r.matricula,
       "NOTA DEVOLUTIVA": r.notaDevolutiva,
       MOTIVO: r.motivo || "",
+      ENVIADO: r.enviado ? "SÍ" : "NO",
+      "FECHA DE ENVÍO": formatoFechaEnvio(r.fechaEnvio),
+      "ENVIADO POR": r.enviadoPor || "",
+      SOPORTE: r.soporteNombre || "",
+      "ENLACE DEL SOPORTE": r.soporteURL || "",
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -202,6 +281,60 @@ export default function EscriturasPendientes({ isAdmin }) {
         </div>
       )}
 
+      {aviso && (
+        <div
+          style={{
+            padding: "12px 16px", borderRadius: "10px", marginBottom: "1rem",
+            fontWeight: 600, fontSize: "0.95rem",
+            background: aviso.tipo === "ok" ? "#dcfce7" : "#fee2e2",
+            color: aviso.tipo === "ok" ? "#166534" : "#b91c1c",
+          }}
+        >
+          {aviso.tipo === "ok" ? "✅ " : "⚠️ "}{aviso.texto}
+        </div>
+      )}
+
+      {/* BARRA DE ENVÍO — aparece al marcar escrituras */}
+      {seleccion.length > 0 && (
+        <div
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            flexWrap: "wrap", gap: "1rem", padding: "1rem 1.2rem", marginBottom: "1rem",
+            background: "#f0fdf4", border: "2px solid #86efac", borderRadius: "12px",
+          }}
+        >
+          <span style={{ fontWeight: "bold", color: "#166534" }}>
+            {seleccion.length}{" "}
+            {seleccion.length === 1 ? "escritura seleccionada" : "escrituras seleccionadas"}
+          </span>
+
+          <div className="action-buttons" style={{ display: "flex", gap: "0.8rem", flexWrap: "wrap" }}>
+            <label
+              style={{
+                padding: "12px 24px", borderRadius: "8px", cursor: subiendo ? "wait" : "pointer",
+                background: subiendo ? "#9ca3af" : "#166534", color: "white", fontWeight: 600,
+              }}
+            >
+              {subiendo ? "Subiendo soporte…" : "📎 Adjuntar soporte y marcar como enviadas"}
+              <input
+                type="file"
+                accept="application/pdf,.pdf,image/*"
+                onChange={adjuntarSoporte}
+                disabled={subiendo}
+                style={{ display: "none" }}
+              />
+            </label>
+            <button
+              onClick={() => setSeleccion([])}
+              disabled={subiendo}
+              style={{ padding: "12px 24px", background: "#6b7280", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* TABLA DE REGISTROS */}
       {escrituras.length > 0 && (
         <p className="scroll-hint compacta">← Desliza la tabla hacia los lados para ver todas las columnas →</p>
@@ -218,12 +351,33 @@ export default function EscriturasPendientes({ isAdmin }) {
             <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>MATRÍCULA</th>
             <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>NOTA DEVOLUTIVA</th>
             <th className="celda-texto" style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>MOTIVO</th>
+            <th style={{ padding: "12px 10px", textAlign: "center", fontSize: "0.85rem" }}>
+              ENVÍO
+              {pendientes.length > 0 && (
+                <label
+                  title="Marcar o desmarcar todas las pendientes"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "5px", marginTop: "4px", fontSize: "0.68rem", fontWeight: 400, textTransform: "none", cursor: "pointer", color: "white" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={todasPendientesMarcadas}
+                    onChange={alternarTodas}
+                    style={{ width: "15px", height: "15px", cursor: "pointer", accentColor: "#facc15" }}
+                  />
+                  todas
+                </label>
+              )}
+            </th>
             {isAdmin && <th style={{ padding: "12px 10px", textAlign: "center", fontSize: "0.85rem" }}>ACCIONES</th>}
           </tr>
         </thead>
         <tbody>
           {escrituras.map((r) => (
-            <tr key={r.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
+            <tr
+              key={r.id}
+              className={r.enviado ? "fila-enviada" : undefined}
+              style={{ borderBottom: "1px solid #e5e7eb" }}
+            >
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.item}</td>
               <td className="celda-texto" style={{ padding: "12px 10px", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4" }}>{r.acto}</td>
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.numeroEscritura}</td>
@@ -231,14 +385,58 @@ export default function EscriturasPendientes({ isAdmin }) {
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.matricula}</td>
               <td style={{ padding: "12px 10px", color: r.notaDevolutiva === "SI" ? "#b91c1c" : "#166534", fontWeight: "bold", whiteSpace: "nowrap" }}>{r.notaDevolutiva}</td>
               <td className="celda-texto" style={{ padding: "12px 10px", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4" }}>{r.motivo || ""}</td>
+              <td style={{ padding: "12px 10px", textAlign: "center", whiteSpace: "nowrap" }}>
+                {r.enviado ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                    <strong style={{ color: "#166534", fontSize: "0.82rem" }}>
+                      ✅ Enviada
+                    </strong>
+                    <small style={{ color: "#166534", fontSize: "0.72rem" }}>
+                      {formatoFechaEnvio(r.fechaEnvio)}
+                    </small>
+                    {r.soporteURL && (
+                      <a
+                        href={r.soporteURL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`Abrir ${r.soporteNombre || "el soporte"} en una pestaña nueva`}
+                        style={{ color: "#166534", fontSize: "0.78rem", fontWeight: 600 }}
+                      >
+                        📎 Ver soporte
+                      </a>
+                    )}
+                    {isAdmin && (
+                      <button
+                        onClick={() => devolverAPendiente(r)}
+                        title="Quitar el soporte y devolver la escritura a pendiente"
+                        style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: "0.72rem", textDecoration: "underline", padding: 0 }}
+                      >
+                        Devolver a pendiente
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "0.8rem", color: "#6b7280", fontWeight: 400, margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={seleccion.includes(r.id)}
+                      onChange={() => alternarSeleccion(r.id)}
+                      style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#166534" }}
+                    />
+                    Pendiente
+                  </label>
+                )}
+              </td>
               {isAdmin && (
-                <td style={{ padding: "16px", textAlign: "center" }}>
-                  <button onClick={() => editEntry(r)} style={{ background: "#d97706", color: "white", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", marginRight: "0.5rem" }}>
-                    ✏️ Editar
-                  </button>
-                  <button onClick={() => deleteEntry(r.id)} style={{ background: "#b91c1c", color: "white", border: "none", padding: "8px 16px", borderRadius: "6px", cursor: "pointer" }}>
-                    🗑️ Eliminar
-                  </button>
+                <td style={{ padding: "12px 10px", textAlign: "center" }}>
+                  <div className="acciones-escritura">
+                    <button onClick={() => editEntry(r)} style={{ background: "#d97706" }}>
+                      ✏️ Editar
+                    </button>
+                    <button onClick={() => deleteEntry(r.id)} style={{ background: "#b91c1c" }}>
+                      🗑️ Eliminar
+                    </button>
+                  </div>
                 </td>
               )}
             </tr>

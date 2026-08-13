@@ -32,6 +32,19 @@ service firebase.storage {
       allow delete: if haIniciadoSesion();
     }
 
+    // Soportes de envío de escrituras a la notaría de Florencia.
+    // Un mismo archivo puede amparar varias escrituras, por eso van todos
+    // juntos en esta carpeta y no anidados por número de escritura.
+    match /soportes-escrituras/{archivo} {
+
+      allow read: if haIniciadoSesion();
+
+      allow create, update: if haIniciadoSesion()
+                            && request.resource.size < 50 * 1024 * 1024;
+
+      allow delete: if haIniciadoSesion();
+    }
+
     // Cualquier otra ruta del bucket, cerrada.
     match /{ruta=**} {
       allow read, write: if false;

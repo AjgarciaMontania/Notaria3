@@ -348,18 +348,47 @@ tbody tr.summary-row:first-of-type td {
   text-transform: uppercase;
 }
 
+/* Los 9 anchos suman ~1195px y caben dentro de la tarjeta de 1380px */
 .tabla-escrituras {
-  min-width: 1000px;
+  min-width: 1195px;
 }
 
 .tabla-escrituras th:nth-child(1) { min-width: 60px;  text-align: center; }
-.tabla-escrituras th:nth-child(2) { min-width: 230px; white-space: normal; }
+.tabla-escrituras th:nth-child(2) { min-width: 210px; white-space: normal; }
 .tabla-escrituras th:nth-child(3) { min-width: 120px; }
 .tabla-escrituras th:nth-child(4) { min-width: 125px; }
 .tabla-escrituras th:nth-child(5) { min-width: 125px; }
-.tabla-escrituras th:nth-child(6) { min-width: 110px; text-align: center; }
-.tabla-escrituras th:nth-child(7) { min-width: 220px; white-space: normal; }
-.tabla-escrituras th:nth-child(8) { min-width: 190px; text-align: center; }
+.tabla-escrituras th:nth-child(6) { min-width: 125px; text-align: center; white-space: normal; }
+.tabla-escrituras th:nth-child(7) { min-width: 190px; white-space: normal; }
+.tabla-escrituras th:nth-child(8) { min-width: 120px; text-align: center; }
+.tabla-escrituras th:nth-child(9) { min-width: 120px; text-align: center; }
+
+/* Editar y Eliminar apilados: en horizontal ya no caben junto a la columna ENVÍO */
+.acciones-escritura {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.acciones-escritura button {
+  padding: 7px 10px;
+  font-size: 0.78rem;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Escrituras ya enviadas a la notaría: fila en verde claro */
+.fila-enviada td {
+  background-color: #dcfce7 !important;
+}
+
+.fila-enviada:hover td {
+  background-color: #bbf7d0 !important;
+}
 
 .tabla-escrituras tbody td:nth-child(1),
 .tabla-escrituras tbody td:nth-child(6) {

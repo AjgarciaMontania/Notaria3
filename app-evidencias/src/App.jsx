@@ -6,8 +6,10 @@ import Login from './screens/Login.jsx';
 import Carpetas from './screens/Carpetas.jsx';
 import Archivos from './screens/Archivos.jsx';
 import Recibidos from './screens/Recibidos.jsx';
+import Escrituras from './screens/Escrituras.jsx';
 import { MINUTOS_INACTIVIDAD } from './config.js';
 import { escucharCarpetas, escucharArchivos } from './lib/evidencias.js';
+import { escucharEscrituras } from './lib/escrituras.js';
 import { recogerPendientes, alRecibirArchivos } from './lib/compartidos.js';
 import { alCambiarSesion, cerrarSesion } from './lib/sesion.js';
 
@@ -21,6 +23,10 @@ export default function App() {
   const [cargando, setCargando] = useState(true);
   // PDFs que otra app envió con el botón "Compartir" de Android
   const [compartidos, setCompartidos] = useState([]);
+  // Pestaña activa: 'evidencias' o 'escrituras'
+  const [pestana, setPestana] = useState('evidencias');
+  const [escrituras, setEscrituras] = useState([]);
+  const [cargandoEscrituras, setCargandoEscrituras] = useState(true);
   const temporizador = useRef(null);
 
   // Barra de estado con el verde de la notaría
@@ -89,6 +95,17 @@ export default function App() {
     };
   }, [autenticado]);
 
+  // Escrituras pendientes de Florencia
+  useEffect(() => {
+    if (!autenticado) return;
+    setCargandoEscrituras(true);
+    const parar = escucharEscrituras((datos) => {
+      setEscrituras(datos);
+      setCargandoEscrituras(false);
+    });
+    return parar;
+  }, [autenticado]);
+
   /**
    * Añade archivos compartidos descartando los que ya estén en la lista.
    * La ruta la genera el plugin y es única por archivo recibido, así que
@@ -151,6 +168,7 @@ export default function App() {
         archivos={compartidos}
         carpetas={carpetas}
         archivosExistentes={archivos}
+        escrituras={escrituras}
         onCerrar={() => setCompartidos([])}
       />
     );
@@ -161,19 +179,58 @@ export default function App() {
     ? carpetas.find((c) => c.id === carpetaActual.id) || carpetaActual
     : null;
 
-  return carpetaViva ? (
-    <Archivos
-      carpeta={carpetaViva}
-      archivos={archivos.filter((a) => a.folder === carpetaViva.name)}
-      onVolver={() => setCarpetaActual(null)}
-    />
-  ) : (
-    <Carpetas
-      carpetas={carpetas}
-      archivos={archivos}
-      cargando={cargando}
-      onAbrir={setCarpetaActual}
-      onSalir={salir}
-    />
+  // Dentro de una carpeta la pantalla ocupa todo: las pestañas estorbarían
+  if (carpetaViva) {
+    return (
+      <Archivos
+        carpeta={carpetaViva}
+        archivos={archivos.filter((a) => a.folder === carpetaViva.name)}
+        onVolver={() => setCarpetaActual(null)}
+      />
+    );
+  }
+
+  return (
+    <div className="con-pestanas">
+      <div className="cuerpo-pestanas">
+        {pestana === 'evidencias' ? (
+          <Carpetas
+            carpetas={carpetas}
+            archivos={archivos}
+            cargando={cargando}
+            onAbrir={setCarpetaActual}
+            onSalir={salir}
+          />
+        ) : (
+          <Escrituras
+            escrituras={escrituras}
+            cargando={cargandoEscrituras}
+            onSalir={salir}
+          />
+        )}
+      </div>
+
+      <nav className="pestanas">
+        <button
+          className={pestana === 'evidencias' ? 'activa' : undefined}
+          onClick={() => setPestana('evidencias')}
+        >
+          <span className="pestana-icono">📁</span>
+          Evidencias
+        </button>
+        <button
+          className={pestana === 'escrituras' ? 'activa' : undefined}
+          onClick={() => setPestana('escrituras')}
+        >
+          <span className="pestana-icono">📋</span>
+          Escrituras
+          {escrituras.filter((e) => !e.enviado).length > 0 && (
+            <span className="pestana-globo">
+              {escrituras.filter((e) => !e.enviado).length}
+            </span>
+          )}
+        </button>
+      </nav>
+    </div>
   );
 }

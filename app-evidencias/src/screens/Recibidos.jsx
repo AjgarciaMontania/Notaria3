@@ -1,13 +1,17 @@
 import { useState, useRef } from 'react';
 import { crearCarpeta, subirArchivo, nombreDisponible } from '../lib/evidencias.js';
 import { leerCompartido, formatoTamano } from '../lib/compartidos.js';
+import { subirSoporteYMarcarEnviadas } from '../lib/escrituras.js';
 
 /**
  * Pantalla que aparece cuando otra app (ClearScanner, Drive, Archivos…)
  * comparte uno o varios PDF con Evidencias Notaría: se elige la carpeta
  * destino y se suben todos de una vez.
  */
-export default function Recibidos({ archivos, carpetas, archivosExistentes, onCerrar }) {
+export default function Recibidos({ archivos, carpetas, archivosExistentes, escrituras = [], onCerrar }) {
+  // Primero se elige a qué módulo va lo compartido; después el detalle.
+  const [modulo, setModulo] = useState(null);       // 'evidencias' | 'soporte'
+  const [escriturasElegidas, setEscriturasElegidas] = useState([]);
   const [destino, setDestino] = useState(null);
   const [nuevaCarpeta, setNuevaCarpeta] = useState('');
   const [creando, setCreando] = useState(false);
@@ -75,9 +79,30 @@ export default function Recibidos({ archivos, carpetas, archivosExistentes, onCe
     setResultado({ subidos, fallidos });
   };
 
+  const usarComoSoporte = async () => {
+    if (!escriturasElegidas.length || subiendo.current) return;
+    subiendo.current = true;
+    setError('');
+    const soporte = archivos[0];
+    setProgreso({ actual: 1, total: 1, nombre: soporte.nombre, porcentaje: 0 });
+    try {
+      const contenido = await leerCompartido(soporte);
+      const elegidas = escrituras.filter((e) => escriturasElegidas.includes(e.id));
+      const cuantas = await subirSoporteYMarcarEnviadas(contenido, soporte.nombre, elegidas);
+      setProgreso(null);
+      setResultado({ subidos: cuantas, fallidos: [], comoSoporte: true });
+    } catch (err) {
+      console.error(err);
+      setProgreso(null);
+      setError(err.message);
+    } finally {
+      subiendo.current = false;
+    }
+  };
+
   // ── Resumen final ─────────────────────────────────────────────────────────
   if (resultado) {
-    const { subidos, fallidos } = resultado;
+    const { subidos, fallidos, comoSoporte } = resultado;
     return (
       <div className="pantalla">
         <header className="barra">
@@ -87,9 +112,20 @@ export default function Recibidos({ archivos, carpetas, archivosExistentes, onCe
         </header>
         <main className="contenido">
           <div className={`aviso ${fallidos.length ? 'parcial' : 'ok'}`}>
-            {subidos} de {archivos.length}{' '}
-            {archivos.length === 1 ? 'documento subido' : 'documentos subidos'}
-            {fallidos.length > 0 && ` · ${fallidos.length} con problemas`}
+            {comoSoporte ? (
+              <>
+                {subidos}{' '}
+                {subidos === 1
+                  ? 'escritura marcada como enviada'
+                  : 'escrituras marcadas como enviadas'}
+              </>
+            ) : (
+              <>
+                {subidos} de {archivos.length}{' '}
+                {archivos.length === 1 ? 'documento subido' : 'documentos subidos'}
+                {fallidos.length > 0 && ` · ${fallidos.length} con problemas`}
+              </>
+            )}
           </div>
 
           {fallidos.length > 0 && (
@@ -145,6 +181,134 @@ export default function Recibidos({ archivos, carpetas, archivosExistentes, onCe
             No cierres la aplicación hasta que termine.
           </p>
         </main>
+      </div>
+    );
+  }
+
+  // ── Paso 1: ¿a qué módulo va lo compartido? ───────────────────────────────
+  if (modulo === null) {
+    const pendientes = escrituras.filter((e) => !e.enviado);
+    return (
+      <div className="pantalla">
+        <header className="barra">
+          <button className="boton fantasma" onClick={onCerrar}>
+            Cancelar
+          </button>
+          <div className="barra-centro">
+            <h1>
+              {archivos.length} {archivos.length === 1 ? 'documento' : 'documentos'}
+            </h1>
+            <span className="barra-sub">{formatoTamano(totalBytes)} en total</span>
+          </div>
+        </header>
+
+        <main className="contenido">
+          <div className="tarjeta">
+            <ul className="lista-simple">
+              {archivos.map((a, i) => (
+                <li key={`${a.ruta}-${i}`}>
+                  <span className="fallido-nombre">📄 {a.nombre}</span>
+                  <small>{formatoTamano(a.tamano)}</small>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <label className="titulo-seccion">¿Qué hago con esto?</label>
+
+          <ul className="lista">
+            <li>
+              <button className="item" onClick={() => setModulo('evidencias')}>
+                <span className="item-icono">📁</span>
+                <span className="item-texto">
+                  <strong>Guardar en Evidencias</strong>
+                  <small>Elegir una carpeta y archivarlo ahí</small>
+                </span>
+                <span className="item-flecha">›</span>
+              </button>
+            </li>
+            <li>
+              <button
+                className="item"
+                onClick={() => setModulo('soporte')}
+                disabled={archivos.length !== 1 || pendientes.length === 0}
+              >
+                <span className="item-icono">📋</span>
+                <span className="item-texto">
+                  <strong>Usar como soporte de envío</strong>
+                  <small>
+                    {archivos.length !== 1
+                      ? 'Solo funciona con un documento a la vez'
+                      : pendientes.length === 0
+                        ? 'No hay escrituras pendientes'
+                        : `Marcar escrituras como enviadas (${pendientes.length} pendientes)`}
+                  </small>
+                </span>
+                <span className="item-flecha">›</span>
+              </button>
+            </li>
+          </ul>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Paso 2 (soporte): elegir a qué escrituras ampara ──────────────────────
+  if (modulo === 'soporte') {
+    const pendientes = escrituras.filter((e) => !e.enviado);
+    return (
+      <div className="pantalla">
+        <header className="barra">
+          <button className="boton fantasma" onClick={() => setModulo(null)}>
+            ‹ Atrás
+          </button>
+          <div className="barra-centro">
+            <h1>Soporte de envío</h1>
+            <span className="barra-sub">{archivos[0]?.nombre}</span>
+          </div>
+        </header>
+
+        <main className="contenido">
+          {error && <div className="aviso error">{error}</div>}
+
+          <label className="titulo-seccion">
+            ¿Qué escrituras ampara este soporte?
+          </label>
+
+          <ul className="lista">
+            {pendientes.map((e) => (
+              <li key={e.id}>
+                <label className={`item${escriturasElegidas.includes(e.id) ? ' item-elegido' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={escriturasElegidas.includes(e.id)}
+                    onChange={() =>
+                      setEscriturasElegidas((p) =>
+                        p.includes(e.id) ? p.filter((x) => x !== e.id) : [...p, e.id]
+                      )
+                    }
+                  />
+                  <span className="item-texto">
+                    <strong>N° {e.numeroEscritura}</strong>
+                    <small>{e.acto}</small>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </main>
+
+        <div className="pie-fijo">
+          <button
+            className="boton principal ancho"
+            onClick={usarComoSoporte}
+            disabled={!escriturasElegidas.length}
+          >
+            {escriturasElegidas.length
+              ? `Marcar ${escriturasElegidas.length} como enviadas`
+              : 'Elige al menos una escritura'}
+          </button>
+        </div>
       </div>
     );
   }
