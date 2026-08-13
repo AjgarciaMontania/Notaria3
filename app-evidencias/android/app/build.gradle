@@ -7,8 +7,8 @@ android {
         applicationId "co.gov.notaria.cartagenadelchaira.evidencias"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 7
-        versionName "1.6"
+        versionCode 9
+        versionName "1.8"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -40,6 +40,20 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hayKeystore) {
+                signingConfig signingConfigs.release
+            }
+        }
+        // El APK de debug se firma con LA MISMA clave que el de release.
+        //
+        // Antes no tenía firma propia, así que Gradle usaba la clave de
+        // depuración automática de la máquina que compilaba. En GitHub Actions
+        // esa máquina es nueva en cada compilación y genera una clave distinta
+        // cada vez: por eso Android rechazaba la actualización con "conflicto
+        // con un paquete" y tocaba desinstalar la app.
+        //
+        // Con la misma clave en los dos, cualquier APK actualiza a la anterior.
+        debug {
             if (hayKeystore) {
                 signingConfig signingConfigs.release
             }

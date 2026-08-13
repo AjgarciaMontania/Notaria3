@@ -87,6 +87,17 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* IMPORTANTE: .contenido es una columna flex con altura fija que hace scroll.
+   Por defecto sus hijos pueden ENCOGERSE, y cualquier tarjeta con
+   "overflow: hidden" (como .lamina) pierde su altura mínima automática y
+   RECORTA su contenido en silencio: en pantallas bajas se veía el encabezado
+   de la liquidación pero desaparecían el detalle y los totales.
+   Con flex-shrink: 0 cada tarjeta conserva su alto real y la lista se
+   desplaza, que es lo que se espera en un celular. */
+.contenido > * {
+  flex-shrink: 0;
+}
+
 /* ── Botones ────────────────────────────────────────────────────────────── */
 .boton {
   font-family: inherit;
