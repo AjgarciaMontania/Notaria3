@@ -7,6 +7,7 @@ import Carpetas from './screens/Carpetas.jsx';
 import Archivos from './screens/Archivos.jsx';
 import Recibidos from './screens/Recibidos.jsx';
 import Escrituras from './screens/Escrituras.jsx';
+import Liquidacion from './screens/Liquidacion.jsx';
 import { MINUTOS_INACTIVIDAD } from './config.js';
 import { escucharCarpetas, escucharArchivos } from './lib/evidencias.js';
 import { escucharEscrituras } from './lib/escrituras.js';
@@ -23,7 +24,7 @@ export default function App() {
   const [cargando, setCargando] = useState(true);
   // PDFs que otra app envió con el botón "Compartir" de Android
   const [compartidos, setCompartidos] = useState([]);
-  // Pestaña activa: 'evidencias' o 'escrituras'
+  // Pestaña activa: 'evidencias', 'escrituras' o 'liquidacion'
   const [pestana, setPestana] = useState('evidencias');
   const [escrituras, setEscrituras] = useState([]);
   const [cargandoEscrituras, setCargandoEscrituras] = useState(true);
@@ -201,12 +202,14 @@ export default function App() {
             onAbrir={setCarpetaActual}
             onSalir={salir}
           />
-        ) : (
+        ) : pestana === 'escrituras' ? (
           <Escrituras
             escrituras={escrituras}
             cargando={cargandoEscrituras}
             onSalir={salir}
           />
+        ) : (
+          <Liquidacion onSalir={salir} />
         )}
       </div>
 
@@ -229,6 +232,13 @@ export default function App() {
               {escrituras.filter((e) => !e.enviado).length}
             </span>
           )}
+        </button>
+        <button
+          className={pestana === 'liquidacion' ? 'activa' : undefined}
+          onClick={() => setPestana('liquidacion')}
+        >
+          <span className="pestana-icono">🧮</span>
+          Liquidar
         </button>
       </nav>
     </div>

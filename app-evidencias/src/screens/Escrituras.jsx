@@ -4,6 +4,7 @@ import {
   agregarEscritura,
   subirSoporteYMarcarEnviadas,
   revertirEnvio,
+  eliminarEscritura,
   formatoFechaEnvio,
 } from '../lib/escrituras.js';
 import { tomarFoto, fotosAPdf, nombreEscaneo } from '../lib/escaner.js';
@@ -123,6 +124,26 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
       );
     } catch (error) {
       mostrar('error', `No se pudo revertir: ${error.message}`, 9000);
+    }
+  };
+
+  const borrar = async (registro) => {
+    const ok = window.confirm(
+      `¿Eliminar la escritura ${registro.numeroEscritura} — ${registro.acto}?\n\n` +
+        'Esta acción no se puede deshacer.'
+    );
+    if (!ok) return;
+    try {
+      const borradoSoporte = await eliminarEscritura(registro, escrituras);
+      setSeleccion((p) => p.filter((x) => x !== registro.id));
+      mostrar(
+        'ok',
+        borradoSoporte
+          ? 'Escritura eliminada junto con su soporte.'
+          : 'Escritura eliminada.'
+      );
+    } catch (error) {
+      mostrar('error', `No se pudo eliminar: ${error.message}`, 9000);
     }
   };
 
@@ -345,6 +366,12 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
 
                   {e.motivo && <p className="escritura-motivo">{e.motivo}</p>}
 
+                  {!e.enviado && (
+                    <button className="borrar-escritura" onClick={() => borrar(e)}>
+                      🗑️ Eliminar escritura
+                    </button>
+                  )}
+
                   {e.enviado && (
                     <div className="escritura-envio">
                       <span>✅ Enviada el {formatoFechaEnvio(e.fechaEnvio)}</span>
@@ -356,6 +383,9 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
                         )}
                         <button className="boton gris" onClick={() => devolverAPendiente(e)}>
                           ↩ A pendiente
+                        </button>
+                        <button className="boton gris" onClick={() => borrar(e)}>
+                          🗑️ Eliminar
                         </button>
                       </div>
                     </div>

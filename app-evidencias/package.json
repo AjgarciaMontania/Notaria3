@@ -18,9 +18,12 @@
     "@capacitor/browser": "^8.0.4",
     "@capacitor/camera": "^8.2.2",
     "@capacitor/core": "^8.5.0",
+    "@capacitor/filesystem": "^8.1.2",
     "@capacitor/preferences": "^8.0.1",
+    "@capacitor/share": "^8.0.1",
     "@capacitor/status-bar": "^8.0.3",
     "firebase": "^12.17.1",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

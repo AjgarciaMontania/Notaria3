@@ -852,3 +852,154 @@ input:focus {
   flex-shrink: 0;
   accent-color: var(--verde);
 }
+
+/* ── Lámina de la liquidación (lo que se convierte en imagen) ───────────── */
+.lamina {
+  background: white;
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.lamina-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--verde);
+  color: white;
+  padding: 14px;
+}
+
+.lamina-escudo {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  background: white;
+  border-radius: 8px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.lamina-cabecera div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lamina-cabecera strong {
+  font-size: 0.9rem;
+  line-height: 1.25;
+}
+
+.lamina-cabecera span {
+  font-size: 0.75rem;
+  opacity: 0.9;
+}
+
+.lamina-acto {
+  border-bottom: 1px solid var(--borde);
+  padding: 12px 14px;
+}
+
+.lamina-acto-titulo {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.lamina-acto-titulo strong {
+  font-size: 0.86rem;
+  color: var(--verde);
+  overflow-wrap: anywhere;
+}
+
+.lamina-acto-titulo span {
+  font-size: 0.8rem;
+  color: var(--gris);
+  white-space: nowrap;
+}
+
+.lamina-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lamina-detalle > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.82rem;
+}
+
+.lamina-detalle > div > span:first-child {
+  color: var(--gris);
+}
+
+.lamina-detalle > div > span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+
+.lamina-total-acto {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--borde);
+  font-weight: 700;
+  color: var(--texto);
+}
+
+.lamina-totales {
+  padding: 12px 14px;
+  background: #f0fdf4;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.total-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.86rem;
+}
+
+.total-fila strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.total-fila.destacado {
+  border-top: 2px solid #86efac;
+  margin-top: 4px;
+  padding-top: 8px;
+  font-size: 1rem;
+  color: var(--verde);
+  font-weight: 700;
+}
+
+.total-fila.positivo strong {
+  color: var(--verde);
+}
+
+.total-fila.negativo strong {
+  color: var(--rojo);
+}
+
+.campo small {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+/* Eliminar una escritura pendiente: discreto, no compite con el envío */
+.borrar-escritura {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--rojo);
+  font-family: inherit;
+  font-size: 0.78rem;
+  text-decoration: underline;
+  padding: 0;
+  cursor: pointer;
+}

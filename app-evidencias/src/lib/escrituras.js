@@ -8,6 +8,7 @@ import {
   addDoc,
   getDocs,
   updateDoc,
+  deleteDoc,
   doc,
   onSnapshot,
 } from 'firebase/firestore';
@@ -46,6 +47,27 @@ export async function agregarEscritura(datos) {
     motivo: datos.motivo?.trim() || '',
     enviado: false,
   });
+}
+
+/**
+ * Elimina una escritura. Si tenía soporte y ninguna otra lo usa, el archivo
+ * también se borra de Storage.
+ */
+export async function eliminarEscritura(escritura, todas) {
+  const ruta = escritura.soportePath;
+  await deleteDoc(doc(db, 'escrituras', escritura.id));
+
+  if (!ruta) return false;
+  const enUso = todas.some((e) => e.id !== escritura.id && e.soportePath === ruta);
+  if (enUso) return false;
+
+  try {
+    await deleteObject(ref(storage, ruta));
+    return true;
+  } catch (fallo) {
+    if (fallo.code !== 'storage/object-not-found') throw fallo;
+    return false;
+  }
 }
 
 /** Quita acentos y caracteres que no valen como nombre de archivo. */

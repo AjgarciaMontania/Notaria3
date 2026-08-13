@@ -1,71 +1,12 @@
 // src/components/ResultTable.jsx
 import * as XLSX from 'xlsx';
-import { formatCOP, formatNumberWithPoints, parseNumberWithoutPoints } from "../utils/formatters";
+import { formatCOP, formatNumberWithPoints } from "../utils/formatters";
 import { forwardRef, useImperativeHandle } from "react";
 import { ACTOS_CONFIG } from "../utils/actosConfig";
-import { getTasaHistorica } from "../utils/tasasHistoricas";
+import { liquidar, MORA_ANNUAL_RATE } from "../utils/motorLiquidacion.js";
 
-// ── Tarifas ORIP 2026 (RES-2026-001726-6) ──────────────────────────────────
-const SIN_CUANTIA_BASE = 29500;
-const FOLIO_ADICIONAL  = 15300;
-
-const FEE_CONSTANTS = {
-  BASE_FEE: 53100,
-  TIERS: [
-    { limit: 12852101,  rate: null },
-    { limit: 192778606, rate: 0.00911 },
-    { limit: 334149656, rate: 0.01131 },
-    { limit: 494798857, rate: 0.01260 },
-    { limit: Infinity,  rate: 0.01333 },
-  ],
-  ADDITIONAL_RATE: 1.02,
-};
-
-const HONORARIOS_RATES = { FIRST: 35000, SECOND_TO_THIRD: 25000, REMAINING: 20000 };
-
-// ── Mora por extemporaneidad (Art. 25 Ley 1579/2012 + Sec. Hacienda Caquetá) ──
-// Tasa derivada de recibos reales Gobernación Caquetá 2026:
-// Escritura 232: $250.000 tributaria × 106 días mora = $18.000 → ~24% anual
-// Actualizar MORA_ANNUAL_RATE si la Gobernación comunica nuevo porcentaje.
-// Tasa exacta: 18.000 mora / (250.000 base × 106 días) × 365 = 24.79%
-const MORA_ANNUAL_RATE = 0.2479; // 24.79% anual simple
-const MORA_RATE_DIARIA = MORA_ANNUAL_RATE / 365;
-
-/** Días calendario entre dos fechas "YYYY-MM-DD" (usa mediodía para evitar DST). */
-const diasEntre = (desde, hasta) => {
-  if (!desde || !hasta) return 0;
-  const d1 = new Date(desde + "T12:00:00");
-  const d2 = new Date(hasta  + "T12:00:00");
-  return Math.floor((d2 - d1) / (1000 * 60 * 60 * 24));
-};
-
-/**
- * Fecha de vencimiento del plazo legal: exactamente 2 meses calendario
- * después de la fecha de escritura (Art. 8 Ley 1579/2012).
- */
-const fechaVencimiento = (fechaEscritura) => {
-  const d = new Date(fechaEscritura + "T12:00:00");
-  d.setMonth(d.getMonth() + 2);
-  return d.toISOString().split("T")[0];
-};
-
-/**
- * Calcula días vencidos e intereses de mora para una escritura.
- * @param {number} tasaAnual - tasa anual en decimal (ej: 0.2784). Si no se pasa, usa MORA_ANNUAL_RATE.
- * @returns {{ diasVencidos: number, mora: number }}
- */
-const calcularMoraEscritura = (fechaEscritura, tributaria, fechaPago, tasaAnual = MORA_ANNUAL_RATE) => {
-  if (!fechaEscritura || !tributaria || tributaria <= 0) return { diasVencidos: 0, mora: 0 };
-  const venc         = fechaVencimiento(fechaEscritura);
-  const diasVencidos = Math.max(0, diasEntre(venc, fechaPago));
-  if (diasVencidos === 0) return { diasVencidos: 0, mora: 0 };
-  const rateDiaria = tasaAnual / 365;
-  // La Gobernación del Caquetá redondea la mora al millar más cercano
-  // (confirmado en todos los recibos: $31.000, $28.000, $37.000, $3.000…)
-  const mora = Math.round(tributaria * rateDiaria * diasVencidos / 1000) * 1000;
-  return { diasVencidos, mora };
-};
-// ───────────────────────────────────────────────────────────────────────────
+// Las tarifas, la mora y los totales viven en utils/motorLiquidacion.js:
+// una sola fuente de verdad compartida con la APK del celular.
 
 const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, tasaMoraDefault, tasasHistoricas }, ref) => {
   // tasaMoraDefault viene de Firestore vía App.jsx; si no llega, usa la constante local
@@ -74,152 +15,29 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
   const TASAS_MES = tasasHistoricas ?? {};
   useImperativeHandle(ref, () => ({ calcularTodo, exportToExcel }));
 
-  // Derecho base sin el 2% de conservación documental (se aplica al final sobre el total)
-  const calcOripBase = (valor) => {
-    if (valor <= 0) return 0;
-    const tier = FEE_CONSTANTS.TIERS.find((t) => valor <= t.limit);
-    return tier.rate ? valor * tier.rate : FEE_CONSTANTS.BASE_FEE;
-  };
-
   const calcularTodo = (dineroEnviadoStr) => {
     if (calcularDisabled) return;
 
-    const actoRows = rows.filter(r => !r.isSummary && !r.isAdditional && !r.isNote);
+    // Toda la matemática vive en utils/motorLiquidacion.js, que comparten la
+    // web y la APK. Aquí solo se prepara la entrada y se arma la tabla.
+    const actos = rows.filter((r) => !r.isSummary && !r.isAdditional && !r.isNote);
 
-    let tributariaTotal = 0;
-    let oripTotal       = 0;
-    let igacTotal       = 0;
-    let saberTotal      = 0;
-    let honorarios      = 0;
-    let contHonorarios  = 0;
-    let moraTotal       = 0;
-
-    const updatedRows = actoRows.map((row) => {
-      const config = ACTOS_CONFIG[row.acto] || { oripTipo: "none", honorarioContable: false };
-      const valor      = parseNumberWithoutPoints(row.valorActo || "0");
-      const foliosAdic = row.foliosAdicionales || 0;
-
-      const isSaber             = row.acto.includes("SABER") || row.acto.includes("ESCRITURA PARA SABER");
-      const isHonorarioContable = config.honorarioContable || isSaber;
-
-      if (isHonorarioContable) {
-        contHonorarios++;
-        honorarios += contHonorarios === 1 ? HONORARIOS_RATES.FIRST :
-                      contHonorarios <= 3  ? HONORARIOS_RATES.SECOND_TO_THIRD :
-                                             HONORARIOS_RATES.REMAINING;
-      }
-
-      if (config.oripTipo === "none") {
-        if (row.acto.includes("IGAC"))  igacTotal  += valor;
-        if (isSaber)                     saberTotal += valor;
-        return { ...row, tributaria: null, orip: null, total: valor };
-      }
-
-      let tributaria = 0;
-      let orip       = 0;
-
-      if (config.tributariaManual) {
-        // tributaria ingresada manualmente por el usuario en la celda de la tabla
-        tributaria = parseNumberWithoutPoints(row.tributariaManual || "0");
-      } else if (config.tributariaRate !== undefined) {
-        tributaria = Math.round(valor * config.tributariaRate);
-      } else if (config.tributaria !== undefined) {
-        tributaria = config.tributaria;
-      }
-
-      // Cálculo ORIP según RES-2026-001726-6 Párrafo 8:
-      // 2% de conservación documental se aplica sobre el subtotal completo
-      // (base + extras + folios adicionales), NO solo sobre el derecho base.
-      if (config.oripTipo === "cuantia") {
-        const base    = calcOripBase(valor) + (config.oripExtras || 0);
-        const subtotal = base + FOLIO_ADICIONAL * foliosAdic;
-        orip = Math.round(subtotal * FEE_CONSTANTS.ADDITIONAL_RATE / 100) * 100;
-      } else if (config.oripTipo === "sin_cuantia") {
-        const numActos  = row.numActos || 1;
-        const subtotal  = SIN_CUANTIA_BASE * numActos + FOLIO_ADICIONAL * foliosAdic;
-        orip = Math.round(subtotal * FEE_CONSTANTS.ADDITIONAL_RATE / 100) * 100;
-      }
-
-      tributariaTotal += tributaria;
-      oripTotal       += orip;
-
-      return { ...row, tributaria, orip, _base: tributaria + orip, mora: 0, diasVencidos: 0 };
+    const { actos: calculados, totales } = liquidar(actos, {
+      fechaPago,
+      tasaMoraDefault: TASA_EFECTIVA,
+      tasasHistoricas: TASAS_MES,
+      dineroEnviado: dineroEnviadoStr,
     });
-
-    // ── PASO 2: mora agrupada por escritura ───────────────────────────────────
-    // Actos con el mismo número+fecha de escritura comparten la base de mora
-    // (así lo liquida la Gobernación: mora sobre tributaria combinada por escritura)
-    const grupos = new Map();
-    updatedRows.forEach((row, idx) => {
-      if (row.tributaria === null || row.tributaria <= 0 || !row.fechaEscritura) return;
-      const numEsc = row.numeroEscritura?.trim();
-      const key    = numEsc ? `${numEsc}||${row.fechaEscritura}` : `__solo__${idx}`;
-      if (!grupos.has(key)) {
-        grupos.set(key, { fechaEscritura: row.fechaEscritura, tasaAnual: null, indices: [], total: 0 });
-      }
-      const g = grupos.get(key);
-      g.indices.push(idx);
-      g.total += row.tributaria;
-      // Primera tasa editada manualmente en el grupo tiene prioridad
-      if (row.tasaAnual != null && g.tasaAnual == null) g.tasaAnual = row.tasaAnual;
-    });
-
-    const moraIdx   = new Array(updatedRows.length).fill(0);
-    const diasIdx   = new Array(updatedRows.length).fill(0);
-    const tasaIdx   = new Array(updatedRows.length).fill(TASA_EFECTIVA);
-
-    grupos.forEach((g) => {
-      if (!fechaPago || g.total <= 0) return;
-      // Si el usuario no editó la tasa, buscar en historial por fecha de vencimiento + año de pago
-      const fv   = fechaVencimiento(g.fechaEscritura);
-      const tasa = g.tasaAnual ?? getTasaHistorica(fv, fechaPago, TASAS_MES) ?? TASA_EFECTIVA;
-      const { diasVencidos, mora: moraGrupo } = calcularMoraEscritura(g.fechaEscritura, g.total, fechaPago, tasa);
-      if (moraGrupo === 0) return;
-      moraTotal += moraGrupo;
-
-      // Distribuir mora proporcionalmente entre los actos del grupo
-      let asignada = 0;
-      g.indices.forEach((idx, i) => {
-        let parte;
-        if (i === g.indices.length - 1) {
-          parte = moraGrupo - asignada; // remanente exacto al último
-        } else {
-          parte = Math.round(moraGrupo * (updatedRows[idx].tributaria / g.total) / 100) * 100;
-          asignada += parte;
-        }
-        moraIdx[idx]  = parte;
-        diasIdx[idx]  = diasVencidos;
-        tasaIdx[idx]  = tasa;
-      });
-    });
-
-    // ── PASO 3: aplicar mora a cada fila ─────────────────────────────────────
-    const updatedRowsFinal = updatedRows.map((row, idx) => {
-      if (row.tributaria === null) return row;
-      const { _base, ...rest } = row;
-      return { ...rest, mora: moraIdx[idx], diasVencidos: diasIdx[idx], tasaAnual: tasaIdx[idx], total: _base + moraIdx[idx] };
-    });
-
-    // SUBTOTAL = suma de todos los totales de fila (tributaria + ORIP + mora incluida)
-    const subtotal        = tributariaTotal + oripTotal + igacTotal + saberTotal + moraTotal;
-    const retiros         = Math.round(Math.ceil((subtotal + honorarios) / 600000) * 3000);
-    const totalConsignar  = subtotal + honorarios + retiros;
-
-    const dineroEnviadoNum = parseNumberWithoutPoints(dineroEnviadoStr || "0");
-    const sobrante         = dineroEnviadoNum - totalConsignar;
-
-    // Advertencia visual si hay mora
-    const hayMora = moraTotal > 0;
 
     setRows([
-      ...updatedRowsFinal,
-      { isSummary: true, label: "SUBTOTAL",  value: subtotal },
-      { isSummary: true, label: "HONORARIOS", value: honorarios },
-      { isSummary: true, label: "RETIROS",           value: retiros },
-      { isSummary: true, label: "TOTAL A CONSIGNAR", value: totalConsignar },
-      { isAdditional: true, label: "TOTAL GASTOS",   value: totalConsignar },
-      { isAdditional: true, label: "DINERO ENVIADO",  value: dineroEnviadoNum, isDinero: true },
-      { isAdditional: true, label: "SOBRANTE",        value: sobrante, isSobrante: true },
+      ...calculados,
+      { isSummary: true, label: "SUBTOTAL", value: totales.subtotal },
+      { isSummary: true, label: "HONORARIOS", value: totales.honorarios },
+      { isSummary: true, label: "RETIROS", value: totales.retiros },
+      { isSummary: true, label: "TOTAL A CONSIGNAR", value: totales.totalConsignar },
+      { isAdditional: true, label: "TOTAL GASTOS", value: totales.totalConsignar },
+      { isAdditional: true, label: "DINERO ENVIADO", value: totales.dineroEnviado, isDinero: true },
+      { isAdditional: true, label: "SOBRANTE", value: totales.sobrante, isSobrante: true },
     ]);
   };
 
