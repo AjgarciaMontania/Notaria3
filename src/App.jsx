@@ -6,7 +6,9 @@ import { ACTOS_CONFIG } from "./utils/actosConfig";
 import EscriturasPendientes from "./components/EscriturasPendientes";
 import Evidencias from "./components/Evidencias";
 import TasaMoraPanel from "./components/TasaMoraPanel";
+import TasasHistoricasPanel from "./components/TasasHistoricasPanel";
 import { useTasaMora } from "./hooks/useTasaMora";
+import { useTasasHistoricas } from "./hooks/useTasasHistoricas";
 import { useAuth } from "./hooks/useAuth";
 
 import icontecLogo from './assets/icontec-iso9001.png';
@@ -120,6 +122,7 @@ function App() {
   // ────────────────────────────────────────────────────────────────────────────
 
   const { tasaAnual, meta, loading: loadingTasa } = useTasaMora();
+  const { tasas: tasasHistoricas } = useTasasHistoricas();
   const resultRef = useRef();
 
   const handleCountChange = useCallback((field) => (e) => {
@@ -352,12 +355,14 @@ function App() {
             calcularDisabled={!hasInserted}
             fechaPago={fechaPago}
             tasaMoraDefault={tasaAnual}
+            tasasHistoricas={tasasHistoricas}
           />
 
           {/* Panel admin para actualizar tasa */}
           {isAdmin && (
             <div style={{ maxWidth: "1380px", margin: "0 auto", padding: "0 1rem 2rem" }}>
               <TasaMoraPanel meta={meta} loading={loadingTasa} />
+              <TasasHistoricasPanel tasasGuardadas={tasasHistoricas} />
             </div>
           )}
 

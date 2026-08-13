@@ -20,7 +20,22 @@ const TASAS = [
   // 2026
   [2026,  1, 0.2436], [2026,  2, 0.2523], [2026,  3, 0.2552],
   [2026,  4, 0.2676], [2026,  5, 0.2817], [2026,  6, 0.2879],
+  [2026,  7, 0.2879], [2026,  8, 0.2966],
 ];
+
+/** Clave con la que se identifica cada mes: "2026-08". */
+export function claveMes(anio, mes) {
+  return `${anio}-${String(mes).padStart(2, "0")}`;
+}
+
+/**
+ * Tabla base incluida en el código, como mapa "YYYY-MM" → tasa decimal.
+ * Sirve de respaldo: si Firestore no responde o no tiene un mes, se usa esta.
+ */
+export const TASAS_BASE = TASAS.reduce((acumulado, [anio, mes, tasa]) => {
+  acumulado[claveMes(anio, mes)] = tasa;
+  return acumulado;
+}, {});
 
 /**
  * Devuelve la tasa de mora que aplica la Gobernación del Caquetá.
@@ -33,11 +48,24 @@ const TASAS = [
  *
  * @param {string} fechaVencimiento - "YYYY-MM-DD" (escritura + 2 meses)
  * @param {string} fechaPago        - "YYYY-MM-DD"
+ * @param {Object} tasasGuardadas   - mapa "YYYY-MM" → tasa decimal, traído de
+ *                                    Firestore. Tiene prioridad sobre la tabla
+ *                                    del código, así se pueden agregar meses
+ *                                    nuevos (o corregir uno) desde el panel de
+ *                                    administrador sin volver a desplegar.
  */
-export function getTasaHistorica(fechaVencimiento, fechaPago) {
+export function getTasaHistorica(fechaVencimiento, fechaPago, tasasGuardadas = {}) {
   if (!fechaVencimiento) return null;
 
-  const venc  = new Date(fechaVencimiento + "T12:00:00");
+  const buscar = (anio, mes) => {
+    const clave = claveMes(anio, mes);
+    const guardada = tasasGuardadas[clave];
+    if (typeof guardada === "number" && guardada > 0) return guardada;
+    const base = TASAS_BASE[clave];
+    return typeof base === "number" ? base : null;
+  };
+
+  const venc = new Date(fechaVencimiento + "T12:00:00");
   const vYear = venc.getFullYear();
   const vMonth = venc.getMonth() + 1;
 
@@ -45,12 +73,11 @@ export function getTasaHistorica(fechaVencimiento, fechaPago) {
     const pYear = new Date(fechaPago + "T12:00:00").getFullYear();
     if (pYear > vYear) {
       // Pago en año posterior al vencimiento → usar enero del año de pago
-      const janEntry = TASAS.find(([y, m]) => y === pYear && m === 1);
-      if (janEntry) return janEntry[2];
+      const enero = buscar(pYear, 1);
+      if (enero !== null) return enero;
     }
   }
 
   // Mismo año o fecha de pago no disponible → usar mes de vencimiento
-  const entry = TASAS.find(([y, m]) => y === vYear && m === vMonth);
-  return entry ? entry[2] : null;
+  return buscar(vYear, vMonth);
 }

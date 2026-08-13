@@ -67,9 +67,11 @@ const calcularMoraEscritura = (fechaEscritura, tributaria, fechaPago, tasaAnual 
 };
 // ───────────────────────────────────────────────────────────────────────────
 
-const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, tasaMoraDefault }, ref) => {
+const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, tasaMoraDefault, tasasHistoricas }, ref) => {
   // tasaMoraDefault viene de Firestore vía App.jsx; si no llega, usa la constante local
   const TASA_EFECTIVA = tasaMoraDefault ?? MORA_ANNUAL_RATE;
+  // Tabla mensual administrable desde el panel; si está vacía se usa la del código
+  const TASAS_MES = tasasHistoricas ?? {};
   useImperativeHandle(ref, () => ({ calcularTodo, exportToExcel }));
 
   // Derecho base sin el 2% de conservación documental (se aplica al final sobre el total)
@@ -170,7 +172,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
       if (!fechaPago || g.total <= 0) return;
       // Si el usuario no editó la tasa, buscar en historial por fecha de vencimiento + año de pago
       const fv   = fechaVencimiento(g.fechaEscritura);
-      const tasa = g.tasaAnual ?? getTasaHistorica(fv, fechaPago) ?? TASA_EFECTIVA;
+      const tasa = g.tasaAnual ?? getTasaHistorica(fv, fechaPago, TASAS_MES) ?? TASA_EFECTIVA;
       const { diasVencidos, mora: moraGrupo } = calcularMoraEscritura(g.fechaEscritura, g.total, fechaPago, tasa);
       if (moraGrupo === 0) return;
       moraTotal += moraGrupo;
