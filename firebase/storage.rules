@@ -17,19 +17,33 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    // Cuentas de SOLO LIQUIDACIÓN: no tocan ningún documento del bucket.
+    // Esta lista debe coincidir SIEMPRE con src/utils/roles.js.
+    function esSoloLiquidacion() {
+      return haIniciadoSesion()
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() in [
+             'liquidador@notaria.com'
+           ];
+    }
+
+    function esPersonalCompleto() {
+      return haIniciadoSesion() && !esSoloLiquidacion();
+    }
+
     match /evidencias/{carpeta}/{archivo} {
 
-      allow read: if haIniciadoSesion();
+      allow read: if esPersonalCompleto();
 
       // En subir y reemplazar se comprueba además el tamaño.
       // 50 MB es holgado para un PDF escaneado y evita que un error
       // (o alguien con malas intenciones) llene el bucket.
-      allow create, update: if haIniciadoSesion()
+      allow create, update: if esPersonalCompleto()
                             && request.resource.size < 50 * 1024 * 1024;
 
       // El borrado va aparte: al borrar no existe request.resource, así que
       // no se le puede pedir el tamaño.
-      allow delete: if haIniciadoSesion();
+      allow delete: if esPersonalCompleto();
     }
 
     // Soportes de envío de escrituras a la notaría de Florencia.
@@ -37,12 +51,12 @@ service firebase.storage {
     // juntos en esta carpeta y no anidados por número de escritura.
     match /soportes-escrituras/{archivo} {
 
-      allow read: if haIniciadoSesion();
+      allow read: if esPersonalCompleto();
 
-      allow create, update: if haIniciadoSesion()
+      allow create, update: if esPersonalCompleto()
                             && request.resource.size < 50 * 1024 * 1024;
 
-      allow delete: if haIniciadoSesion();
+      allow delete: if esPersonalCompleto();
     }
 
     // Cualquier otra ruta del bucket, cerrada.

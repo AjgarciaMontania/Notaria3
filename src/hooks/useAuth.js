@@ -8,6 +8,7 @@ import {
   browserSessionPersistence,
 } from "firebase/auth";
 import { auth } from "../firebase";
+import { esSoloLiquidacion } from "../utils/roles.js";
 
 // Firebase devuelve códigos en inglés; aquí se traducen a algo entendible.
 const MENSAJES = {
@@ -24,6 +25,12 @@ const MENSAJES = {
     "El acceso por correo y contraseña no está habilitado en Firebase.",
 };
 
+// Aviso para las cuentas que solo pueden liquidar desde el celular.
+const SOLO_APK =
+  "Esta cuenta solo puede usarse en la aplicación del celular. " +
+  "Para liquidar en el computador no necesitas iniciar sesión: la " +
+  "calculadora de esta página es de uso libre.";
+
 export function useAuth() {
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -31,6 +38,15 @@ export function useAuth() {
 
   useEffect(() => {
     const dejarDeEscuchar = onAuthStateChanged(auth, (cuenta) => {
+      // Una cuenta de solo liquidación no abre sesión en la web ni siquiera
+      // si el navegador la tenía recordada: se cierra de inmediato.
+      if (cuenta && esSoloLiquidacion(cuenta.email)) {
+        signOut(auth).catch(() => {});
+        setUsuario(null);
+        setError(SOLO_APK);
+        setCargando(false);
+        return;
+      }
       setUsuario(cuenta);
       setCargando(false);
     });
@@ -43,7 +59,13 @@ export function useAuth() {
       // Persistencia de pestaña: al cerrar el navegador la sesión se cierra.
       // En un computador compartido de la notaría es lo prudente.
       await setPersistence(auth, browserSessionPersistence);
-      await signInWithEmailAndPassword(auth, correo.trim(), clave);
+      const { user } = await signInWithEmailAndPassword(auth, correo.trim(), clave);
+      // La contraseña era correcta, pero esta cuenta es solo para la APK.
+      if (esSoloLiquidacion(user?.email)) {
+        await signOut(auth);
+        setError(SOLO_APK);
+        return false;
+      }
       return true;
     } catch (fallo) {
       setError(MENSAJES[fallo.code] || "No se pudo iniciar sesión. Intenta de nuevo.");

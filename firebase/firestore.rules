@@ -18,27 +18,48 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // ── Cuentas de SOLO LIQUIDACIÓN ─────────────────────────────────────────
+    // Entran a la APK únicamente para liquidar escrituras. La liquidación es
+    // matemática que ocurre en el propio celular y solo necesita leer las
+    // tasas de config, que ya son públicas: por eso estas cuentas no requieren
+    // permiso sobre ninguna otra colección.
+    //
+    // Esta lista debe coincidir SIEMPRE con src/utils/roles.js.
+    function esSoloLiquidacion() {
+      return haIniciadoSesion()
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() in [
+             'liquidador@notaria.com'
+           ];
+    }
+
+    // Sesión con permisos completos: cualquier cuenta que no esté restringida.
+    function esPersonalCompleto() {
+      return haIniciadoSesion() && !esSoloLiquidacion();
+    }
+
     // ── Configuración pública ───────────────────────────────────────────────
     // config/tasaMora lo lee TODO visitante de la página de liquidación.
     // Si esto se cierra, la calculadora deja de mostrar la tasa vigente.
     // Solo contiene el porcentaje, la fecha y la fuente: nada sensible.
     match /config/{documento} {
       allow read: if true;
-      allow write: if haIniciadoSesion();
+      // Las tasas solo las cambia el personal desde el computador.
+      allow write: if esPersonalCompleto();
     }
 
     // ── Evidencias notariales ───────────────────────────────────────────────
     match /folders/{carpeta} {
-      allow read, write: if haIniciadoSesion();
+      allow read, write: if esPersonalCompleto();
     }
 
     match /files/{archivo} {
-      allow read, write: if haIniciadoSesion();
+      allow read, write: if esPersonalCompleto();
     }
 
     // ── Escrituras pendientes Florencia ─────────────────────────────────────
     match /escrituras/{escritura} {
-      allow read, write: if haIniciadoSesion();
+      allow read, write: if esPersonalCompleto();
     }
 
     // ── Todo lo demás queda cerrado ─────────────────────────────────────────

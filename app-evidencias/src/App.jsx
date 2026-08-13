@@ -9,6 +9,7 @@ import Recibidos from './screens/Recibidos.jsx';
 import Escrituras from './screens/Escrituras.jsx';
 import Liquidacion from './screens/Liquidacion.jsx';
 import { MINUTOS_INACTIVIDAD } from './config.js';
+import { esSoloLiquidacion } from '@calculo/roles.js';
 import { escucharCarpetas, escucharArchivos } from './lib/evidencias.js';
 import { escucharEscrituras } from './lib/escrituras.js';
 import { recogerPendientes, alRecibirArchivos } from './lib/compartidos.js';
@@ -18,6 +19,9 @@ export default function App() {
   // undefined = todavía comprobando; null = sin sesión; objeto = sesión activa
   const [usuario, setUsuario] = useState(undefined);
   const autenticado = Boolean(usuario);
+  // Cuenta restringida: solo puede liquidar. No se suscribe a nada de
+  // Firestore, porque las reglas se lo niegan y solo produciría errores.
+  const soloLiquida = autenticado && esSoloLiquidacion(usuario.email);
   const [carpetas, setCarpetas] = useState([]);
   const [archivos, setArchivos] = useState([]);
   const [carpetaActual, setCarpetaActual] = useState(null);
@@ -71,7 +75,7 @@ export default function App() {
 
   // Datos en tiempo real (solo mientras hay sesión)
   useEffect(() => {
-    if (!autenticado) return;
+    if (!autenticado || soloLiquida) return;
     setCargando(true);
     let recibidoCarpetas = false;
     let recibidoArchivos = false;
@@ -94,18 +98,18 @@ export default function App() {
       pararCarpetas();
       pararArchivos();
     };
-  }, [autenticado]);
+  }, [autenticado, soloLiquida]);
 
   // Escrituras pendientes de Florencia
   useEffect(() => {
-    if (!autenticado) return;
+    if (!autenticado || soloLiquida) return;
     setCargandoEscrituras(true);
     const parar = escucharEscrituras((datos) => {
       setEscrituras(datos);
       setCargandoEscrituras(false);
     });
     return parar;
-  }, [autenticado]);
+  }, [autenticado, soloLiquida]);
 
   /**
    * Añade archivos compartidos descartando los que ya estén en la lista.
@@ -123,7 +127,7 @@ export default function App() {
 
   // Archivos llegados por "Compartir" desde otra aplicación
   useEffect(() => {
-    if (!autenticado) return;
+    if (!autenticado || soloLiquida) return;
     let oyente = null;
     let vivo = true;
 
@@ -141,7 +145,7 @@ export default function App() {
       vivo = false;
       if (oyente?.remove) oyente.remove();
     };
-  }, [autenticado, agregarCompartidos]);
+  }, [autenticado, soloLiquida, agregarCompartidos]);
 
   // Botón "atrás" de Android: vuelve al listado de carpetas
   useEffect(() => {
@@ -161,6 +165,11 @@ export default function App() {
   }
 
   if (!autenticado) return <Login />;
+
+  // Cuenta de solo liquidación: una sola pantalla, sin barra de pestañas.
+  // Va antes que todo lo demás para que ni los archivos compartidos ni el
+  // botón "atrás" puedan llevarla a otra parte.
+  if (soloLiquida) return <Liquidacion onSalir={salir} />;
 
   // Si otra app compartió PDFs, eso manda sobre cualquier otra pantalla
   if (compartidos.length > 0) {
