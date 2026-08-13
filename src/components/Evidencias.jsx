@@ -56,7 +56,10 @@ export default function Evidencias({ isAdmin }) {
       for (const file of selectedFiles) {
         const storageRef = ref(storage, `evidencias/${currentFolder.name}/${file.name}`);
         await uploadBytes(storageRef, file, {
-          contentType: file.type || "application/octet-stream"
+          contentType: file.type || "application/octet-stream",
+          // "inline" garantiza que el navegador MUESTRE el documento al abrirlo
+          // en una pestaña nueva, en vez de forzar la descarga.
+          contentDisposition: "inline"
         });
         const downloadURL = await getDownloadURL(storageRef);
         await addDoc(collection(db, "files"), {
@@ -237,15 +240,41 @@ export default function Evidencias({ isAdmin }) {
                           {new Date(file.uploadDate).toLocaleDateString("es-CO")}
                         </td>
                         <td style={{ padding: "14px", textAlign: "center" }}>
-                          {isImage ? (
-                            <img
-                              src={file.downloadURL}
-                              alt={file.fileName}
-                              style={{ maxHeight: "60px", maxWidth: "100px", objectFit: "contain", borderRadius: "4px" }}
-                            />
-                          ) : (
-                            "📄"
-                          )}
+                          {/*
+                            Enlace real (no botón con JavaScript): abre el
+                            documento en una pestaña nueva y el navegador lo
+                            muestra con su propio visor, sin descargarlo.
+                            Al ser un <a> normal tampoco lo bloquea el
+                            bloqueador de ventanas emergentes.
+                          */}
+                          <a
+                            href={file.downloadURL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Abrir ${file.fileName} en una pestaña nueva`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              textDecoration: "none",
+                              color: "#166534",
+                              fontWeight: 600,
+                              fontSize: "0.82rem",
+                            }}
+                          >
+                            {isImage ? (
+                              <img
+                                src={file.downloadURL}
+                                alt={file.fileName}
+                                style={{ maxHeight: "60px", maxWidth: "100px", objectFit: "contain", borderRadius: "4px", border: "1px solid #e5e7eb" }}
+                              />
+                            ) : (
+                              <>
+                                <span style={{ fontSize: "1.1rem" }}>📄</span>
+                                Ver
+                              </>
+                            )}
+                          </a>
                         </td>
                         <td style={{ padding: "14px", textAlign: "center" }}>
                           <button

@@ -144,6 +144,9 @@ export async function subirArchivo(archivo, nombreArchivo, carpeta, onProgreso) 
   await new Promise((resolve, reject) => {
     const tarea = uploadBytesResumable(referencia, contenido, {
       contentType: tipo,
+      // "inline" hace que al abrir el documento desde la web se vea en el
+      // navegador, en vez de descargarse.
+      contentDisposition: 'inline',
     });
     tarea.on(
       'state_changed',
