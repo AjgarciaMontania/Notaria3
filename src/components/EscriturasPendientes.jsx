@@ -207,17 +207,8 @@ export default function EscriturasPendientes({ isAdmin }) {
         <p className="scroll-hint">← Desliza la tabla hacia los lados para ver todas las columnas →</p>
       )}
       <div className="table-scroll">
-      <table className="tabla-compacta tabla-escrituras" style={{ width: "100%", borderCollapse: "collapse", background: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", tableLayout: "fixed" }}>
-        <colgroup>
-          <col style={{ width: "5%" }} />   {/* ITEM */}
-          <col style={{ width: "20%" }} />  {/* ACTO */}
-          <col style={{ width: "10%" }} />  {/* N° ESCRITURA */}
-          <col style={{ width: "10%" }} />  {/* FECHA */}
-          <col style={{ width: "10%" }} />  {/* MATRÍCULA */}
-          <col style={{ width: "10%" }} />  {/* NOTA DEVOLUTIVA */}
-          <col style={{ width: isAdmin ? "25%" : "35%" }} />  {/* MOTIVO */}
-          {isAdmin && <col style={{ width: "10%" }} />}  {/* ACCIONES */}
-        </colgroup>
+      {/* Anchos mínimos en píxeles definidos en index.css (.tabla-escrituras) */}
+      <table className="tabla-compacta tabla-escrituras" style={{ width: "100%", borderCollapse: "collapse", background: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
         <thead>
           <tr style={{ background: "#166534", color: "white", textTransform: "uppercase" }}>
             <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>ITEM</th>

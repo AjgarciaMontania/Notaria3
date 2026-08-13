@@ -281,33 +281,21 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
         <p className="scroll-hint">← Desliza la tabla hacia los lados para ver todas las columnas →</p>
       )}
       <div className="table-scroll">
-      <table id="result-table" style={{ width: "100%", tableLayout: "fixed" }}>
-        {/* colgroup debe ser hijo directo de <table>, antes de <thead> */}
-        <colgroup>
-          <col style={{ width: "16%" }} />  {/* ACTO */}
-          <col style={{ width: "10%" }} />  {/* NRO ESCRITURA */}
-          <col style={{ width: "11%" }} />  {/* FECHA */}
-          <col style={{ width: "4%" }} />   {/* FOLIOS */}
-          <col style={{ width: "3%" }} />   {/* # ACTOS */}
-          <col style={{ width: "9%" }} />   {/* VALOR ACTO */}
-          <col style={{ width: "8%" }} />   {/* TRIBUTARIA */}
-          <col style={{ width: "3%" }} />   {/* DÍAS VENC */}
-          <col style={{ width: "6%" }} />   {/* % INTERÉS */}
-          <col style={{ width: "6%" }} />   {/* MORA */}
-          <col style={{ width: "7%" }} />   {/* ORIP */}
-          <col style={{ width: "9%" }} />   {/* TOTAL */}
-        </colgroup>
+      {/* Sin colgroup en porcentajes: los anchos mínimos están en index.css
+          (#result-table th:nth-child), en píxeles, para que ninguna columna
+          se aplaste ni los títulos se partan letra por letra. */}
+      <table id="result-table">
         <thead>
           <tr>
             <th>ACTO</th>
             <th>N° ESCRITURA</th>
             <th>FECHA</th>
-            <th>FOLIOS ADIC.</th>
-            <th title="Número de actos sin cuantía en el documento (editable)"># ACTOS</th>
+            <th title="Folios adicionales del documento">FOLIOS</th>
+            <th title="Número de actos sin cuantía en el documento (editable)">ACTOS</th>
             <th>VALOR ACTO</th>
             <th>TRIBUTARIA</th>
-            <th>DÍAS VENC.</th>
-            <th>% INTERÉS</th>
+            <th title="Días vencidos después del plazo legal de 2 meses">DÍAS</th>
+            <th title="Tasa de mora anual aplicada, editable">% MORA</th>
             <th>MORA</th>
             <th>VALOR ORIP</th>
             <th>TOTAL</th>
@@ -323,12 +311,12 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
               return (
                 <tr key={index} className={className} style={moraStyle}>
                   <td colSpan={10}></td>
-                  <td style={{
-                    whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.3", fontWeight: "bold",
+                  <td className="resumen-etiqueta" style={{
+                    fontWeight: "bold",
                     color: row.isDinero ? "#166534" : row.isSobrante ? (row.value >= 0 ? "#166534" : "#b91c1c") : undefined
                   }}>{row.label}</td>
-                  <td style={{
-                    whiteSpace: "nowrap", fontWeight: "bold",
+                  <td className="resumen-valor" style={{
+                    fontWeight: "bold",
                     color: row.isDinero ? "#166534" : row.isSobrante ? (row.value >= 0 ? "#166534" : "#b91c1c") : undefined
                   }}>{formatCOP(row.value)}</td>
                 </tr>
@@ -360,7 +348,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
                     type="date"
                     value={row.fechaEscritura}
                     onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, fechaEscritura: e.target.value } : r))}
-                    style={{ minWidth: "120px", width: "100%" }}
+                    style={{ minWidth: "112px", width: "100%" }}
                   />
                 </td>
                 <td>
@@ -377,7 +365,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
                       type="number"
                       min="1"
                       title="Número de actos sin cuantía en el documento"
-                      style={{ width: "55px", textAlign: "center", padding: "6px", border: "1px solid #d1d5db", borderRadius: "4px" }}
+                      style={{ width: "100%", textAlign: "center" }}
                       value={row.numActos ?? 1}
                       onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, numActos: parseInt(e.target.value) || 1 } : r))}
                     />
@@ -410,9 +398,9 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
                       step="0.01"
                       title="Tasa anual %. Edita y vuelve a Calcular para actualizar."
                       style={{
-                        width: "70px", textAlign: "center", fontWeight: "bold",
+                        width: "100%", textAlign: "center", fontWeight: "bold",
                         color: "#92400e", border: "1px solid #d97706",
-                        borderRadius: "4px", padding: "4px", background: "#fffbeb"
+                        background: "#fffbeb"
                       }}
                       value={parseFloat(((row.tasaAnual ?? TASA_EFECTIVA) * 100).toFixed(2))}
                       onChange={(e) => {
