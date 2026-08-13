@@ -75,7 +75,30 @@ export default function InputSection({
         {/* Fila 4 */}
         <div className="input-row two-columns">
           <div className="input-group">
-            <label>Acto sin cuantía (poder, PH, etc.):</label>
+            <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              Acto sin cuantía (poder, PH, afect. vivienda, correcciones):
+              <span
+                title={
+                  "Actos sin cuantía según el Artículo 10 de la RES-2026-001726-6 " +
+                  "(su constitución o su cancelación):\n\n" +
+                  "• Poder\n" +
+                  "• Reglamento de propiedad horizontal\n" +
+                  "• Afectación a vivienda familiar\n" +
+                  "• Patrimonio de familia\n" +
+                  "• Correcciones de errores, aclaraciones y adiciones\n" +
+                  "• Constitución y reserva del usufructo\n" +
+                  "• Liquidación de la comunidad\n" +
+                  "• Comodato\n" +
+                  "• Partición o división material, englobe, desenglobe, loteo\n" +
+                  "• Cancelación de contrato de arrendamiento\n" +
+                  "• Declaración de pertenencia\n" +
+                  "• Pacto de retroventa\n\n" +
+                  "Cada uno cuenta como un acto: $30.100 de ORIP y $233.500 de tributaria. " +
+                  "Si una misma escritura trae varios, súbelos en la columna ACTOS de la tabla."
+                }
+                style={{ cursor: "help", background: "#166534", color: "white", borderRadius: "50%", width: "18px", height: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: "bold", flexShrink: 0 }}
+              >?</span>
+            </label>
             <input type="number" placeholder="Cantidad" value={sinCuantia} onChange={onSinCuantiaChange} min="0" />
           </div>
           <div className="input-group">

@@ -1,4 +1,24 @@
 // src/utils/actosConfig.js
+
+/**
+ * Tarifa mínima del impuesto de registro para actos SIN CUANTÍA.
+ *
+ * La Gobernación del Caquetá no cobra $0 por un acto sin cuantía: aplica una
+ * tarifa mínima fija asociada al código del acto. Confirmado con recibos de
+ * Hacienda y verificado de nuevo con la escritura 077 del 03/06/2026
+ * (compraventa $64.000.000 + cancelación de patrimonio de familia):
+ *
+ *   tributaria compraventa 1% ......  $640.000
+ *   tarifa mínima sin cuantía .......  $233.500
+ *   base ............................  $873.500
+ *   mora 9 días al 29,66% ...........    $6.000
+ *   TOTAL ...........................  $879.500  ← exactamente lo liquidado
+ *
+ * Si la Gobernación actualiza este valor, cámbialo aquí y se aplica a todos
+ * los actos sin cuantía a la vez.
+ */
+export const TARIFA_MINIMA_SIN_CUANTIA = 233500;
+
 export const ACTOS_CONFIG = {
   "COMPRAVENTA": {
     tributariaRate: 0.01,
@@ -13,7 +33,7 @@ export const ACTOS_CONFIG = {
     honorarioContable: true,
   },
   "CERTIFICADO CANCELACIÓN HIPOTECA": {
-    tributaria: 233500,
+    tributaria: TARIFA_MINIMA_SIN_CUANTIA,
     oripTipo: "cuantia",
     honorarioContable: true,
   },
@@ -45,34 +65,41 @@ export const ACTOS_CONFIG = {
     oripExtras: 0,
     honorarioContable: true,
   },
+  // La sucesión es acto CON CUANTÍA en las dos entidades. La base es el valor
+  // de la adjudicación, que se escribe en la columna VALOR ACTO.
+  //   ORIP  (Art. 3 RES-2026-001726-6): tabla por rangos del literal b).
+  //         Se liquida por círculo registral, no por inmueble.
+  //   Tributaria (Gobernación): 1%, igual que la compraventa.
   "SUCESIÓN": {
-    tributariaRate: 0,
-    oripTipo: "sin_cuantia",
+    tributariaRate: 0.01,
+    oripTipo: "cuantia",
+    oripExtras: 0,
     honorarioContable: true,
   },
   "ACTO SIN CUANTÍA": {
-    tributariaRate: 0,
+    // Sin tributariaRate a propósito: en ResultTable el rate tiene prioridad
+    // sobre el importe fijo, y con rate 0 esta tarifa nunca se aplicaría.
+    tributaria: TARIFA_MINIMA_SIN_CUANTIA,
     oripTipo: "sin_cuantia",
     honorarioContable: false,
   },
-  // Art. 11 RES-2026-001726-6: cancelación = sin cuantía en ORIP ($30.100)
-  // Tributaria: la Gobernación la calcula sobre el avalúo catastral (IGAC).
-  // Como el documento no tiene cuantía, el usuario la ingresa manualmente
-  // en la celda de la tabla una vez la Gobernación se la informe.
-  // Resolución de levantamiento de prohibición de enajenar (Ley 1537/2012)
-  // Tiene 2 actos en un mismo documento: levantamiento + desistimiento derecho preferencia
-  // ORIP: 2 × $30.100 = $60.200  |  Tributaria: manual (Gobernación usa avalúo catastral IGAC)
-  // Resolución levantamiento de prohibición de enajenar (Ley 1537/2012)
-  // Tiene 2 actos por defecto (levantamiento + desistimiento). El usuario
-  // puede cambiarlo en la columna "# ACTOS" de la tabla si el documento difiere.
-  // Tributaria: manual (Gobernación usa avalúo catastral del IGAC).
-  // Resolución levantamiento prohibición enajenar (Ley 1537/2012)
-  // Tributaria Gobernación: tarifa mínima fija $233.500 (confirmado recibos Hacienda)
-  // ORIP: 2 actos sin cuantía por defecto (editable en tabla)
+  // Resolución de levantamiento de prohibición de enajenar (Ley 1537/2012).
+  //
+  // ORIP: un solo acto sin cuantía = $30.100.
+  //   Aunque la resolución del municipio contiene dos disposiciones
+  //   (levantamiento de la prohibición + desistimiento del derecho de
+  //   preferencia), la ORIP cobra UNA sola. Antes estaba en 2 y liquidaba
+  //   $60.200 de más. Si algún documento llegara a cobrarse doble, se puede
+  //   subir a 2 en la columna "ACTOS" de la tabla.
+  //
+  // Tributaria: tarifa mínima de acto sin cuantía, $233.500.
+  //   Confirmado con recibos de la Secretaría de Hacienda Departamental
+  //   (p. ej. matrícula 420-113130: "CANCELACIÓN REGISTRO · cuantía 1 ·
+  //   $233.500" más intereses de mora).
   "CANCELACIÓN ENAJENACIÓN": {
-    tributaria: 233500,
+    tributaria: TARIFA_MINIMA_SIN_CUANTIA,
     oripTipo: "sin_cuantia",
-    oripCount: 2,
+    oripCount: 1,
     honorarioContable: true,
   },
 };
