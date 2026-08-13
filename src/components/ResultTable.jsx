@@ -335,15 +335,15 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
             const mostrarMora = row.mora && row.mora > 0;
             return (
               <tr key={index} style={mostrarMora ? { background: "#fffbeb" } : {}}>
-                <td>{row.acto}</td>
-                <td>
+                <td className="celda-acto">{row.acto}</td>
+                <td data-label="N° ESCRITURA">
                   <textarea
                     placeholder="Número de escritura"
                     value={row.numeroEscritura}
                     onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, numeroEscritura: e.target.value } : r))}
                   />
                 </td>
-                <td style={{ overflow: "visible", whiteSpace: "nowrap" }}>
+                <td data-label="FECHA" style={{ overflow: "visible", whiteSpace: "nowrap" }}>
                   <input
                     type="date"
                     value={row.fechaEscritura}
@@ -351,7 +351,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
                     style={{ minWidth: "112px", width: "100%" }}
                   />
                 </td>
-                <td>
+                <td data-label="FOLIOS ADICIONALES">
                   <input
                     type="number"
                     min="0"
@@ -359,7 +359,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
                     onChange={(e) => setRows(prev => prev.map((r, i) => i === index ? { ...r, foliosAdicionales: parseInt(e.target.value) || 0 } : r))}
                   />
                 </td>
-                <td style={{ textAlign: "center" }}>
+                <td data-label="N° DE ACTOS" style={{ textAlign: "center" }}>
                   {ACTOS_CONFIG[row.acto]?.oripTipo === "sin_cuantia" ? (
                     <input
                       type="number"
@@ -371,7 +371,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
                     />
                   ) : <span style={{ color: "#9ca3af" }}>—</span>}
                 </td>
-                <td>
+                <td data-label="VALOR ACTO">
                   <input
                     type="text"
                     className="valor-acto"
@@ -386,16 +386,17 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
                     }}
                   />
                 </td>
-                <td>{row.tributaria !== null ? formatCOP(row.tributaria) : ""}</td>
-                <td style={mostrarMora ? { color: "#92400e", fontWeight: "bold", textAlign: "center" } : { color: "#9ca3af", textAlign: "center" }}>
+                <td data-label="TRIBUTARIA">{row.tributaria !== null ? formatCOP(row.tributaria) : ""}</td>
+                <td data-label="DÍAS VENCIDOS" style={mostrarMora ? { color: "#92400e", fontWeight: "bold", textAlign: "center" } : { color: "#9ca3af", textAlign: "center" }}>
                   {mostrarMora ? row.diasVencidos : (row.tributaria !== null ? "—" : "")}
                 </td>
-                <td style={{ textAlign: "center" }}>
+                <td data-label="% MORA ANUAL" style={{ textAlign: "center" }}>
                   {row.tributaria !== null && row.diasVencidos > 0 ? (
                     <input
                       type="number"
                       min="0"
                       step="0.01"
+                      className="input-tasa"
                       title="Tasa anual %. Edita y vuelve a Calcular para actualizar."
                       style={{
                         width: "100%", textAlign: "center", fontWeight: "bold",
@@ -410,13 +411,13 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
                     />
                   ) : (row.tributaria !== null ? <span style={{ color: "#9ca3af" }}>—</span> : "")}
                 </td>
-                <td style={mostrarMora ? { color: "#92400e", fontWeight: "bold" } : { color: "#9ca3af" }}>
+                <td data-label="MORA" style={mostrarMora ? { color: "#92400e", fontWeight: "bold" } : { color: "#9ca3af" }}>
                   {mostrarMora
                     ? formatCOP(row.mora)
                     : (row.tributaria !== null ? "—" : "")}
                 </td>
-                <td>{row.orip !== null ? formatCOP(row.orip) : ""}</td>
-                <td>{row.total !== null ? formatCOP(row.total) : ""}</td>
+                <td data-label="VALOR ORIP">{row.orip !== null ? formatCOP(row.orip) : ""}</td>
+                <td data-label="TOTAL" className="celda-total">{row.total !== null ? formatCOP(row.total) : ""}</td>
               </tr>
             );
           })}

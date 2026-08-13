@@ -254,6 +254,19 @@ td input[type="date"] {
   text-align: center;
 }
 
+/* La tasa lleva decimales: las flechitas del campo numérico no sirven de nada
+   y le robaban el ancho al valor, que se veía cortado ("25.!"). */
+.input-tasa::-webkit-outer-spin-button,
+.input-tasa::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input-tasa {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* ── Anchos mínimos de la tabla de liquidación ─────────────────────────── */
 /* Los 12 anchos suman ~1364px, justo por debajo del contenedor de 1380px:
    en escritorio la tabla entra completa sin desplazamiento lateral. */
@@ -702,63 +715,228 @@ tbody tr.summary-row:first-of-type td {
     transform: none;
   }
 
-  /* Tablas: se muestra el aviso de desplazamiento lateral */
+  /* ══════════════════════════════════════════════════════════════════════
+     MÓVIL: la tabla se convierte en tarjetas.
+
+     En una pantalla de 390 px no caben 12 columnas, y desplazarse de lado
+     obliga a perder de vista el ACTO. Por eso cada escritura pasa a ser una
+     tarjeta vertical con todos sus datos visibles a la vez, sin ningún
+     desplazamiento horizontal. El nombre de cada dato viene del atributo
+     data-label de cada celda.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  .table-scroll {
+    overflow-x: visible;
+  }
+
   .scroll-hint {
-    display: block;
+    display: none;
   }
 
   #output-section {
-    width: 100%;
-    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
   }
 
-  /* Los anchos mínimos ya están definidos arriba en píxeles y sirven igual en
-     móvil: la tabla simplemente se desplaza dentro de .table-scroll. */
+  #result-table,
+  #result-table thead,
+  #result-table tbody,
+  #result-table tr,
+  #result-table td {
+    display: block;
+    width: auto;
+    min-width: 0;
+  }
 
-  .table-scroll table th,
-  .table-scroll table td {
+  /* Los encabezados ya no hacen falta: cada celda lleva su propia etiqueta */
+  #result-table thead {
+    display: none;
+  }
+
+  /* Cada escritura, una tarjeta */
+  #result-table tbody tr {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    margin-bottom: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  #result-table tbody tr:hover td {
+    background: none;
+  }
+
+  /* Encabezado de la tarjeta: el nombre del acto */
+  #result-table td.celda-acto {
+    background: #166534;
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 700;
+    padding: 12px 14px;
+    border: none;
+    text-align: left;
+  }
+
+  /* Cada dato: etiqueta a la izquierda, valor a la derecha */
+  #result-table tbody td:not(.celda-acto) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 10px 14px;
+    border-top: 1px solid #f1f5f9;
+    background: white;
+    text-align: right;
+    font-size: 0.92rem;
+    white-space: normal;
+  }
+
+  #result-table tbody td[data-label]::before {
+    content: attr(data-label);
+    /* min-width: 0 permite que la etiqueta se encoja: sin esto, una etiqueta
+       larga como "FOLIOS ADICIONALES" empujaba el campo fuera de la tarjeta. */
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: #6b7280;
+    text-transform: uppercase;
+  }
+
+  /* Celdas sin dato todavía: no ocupan espacio */
+  #result-table tbody td:empty {
+    display: none;
+  }
+
+  /* Los campos editables ocupan poco más de la mitad; la etiqueta, el resto */
+  #result-table tbody td input,
+  #result-table tbody td textarea {
+    flex: 0 0 56%;
+    width: 56%;
+    max-width: 56%;
+    min-width: 0;
+    font-size: 16px; /* evita el zoom automático de Android/iOS */
+    text-align: right;
+  }
+
+  #result-table tbody td input[type="date"] {
+    text-align: center;
+  }
+
+  #result-table tbody td textarea {
+    min-height: 44px;
+  }
+
+  /* El TOTAL de cada escritura, destacado al pie de la tarjeta */
+  #result-table tbody td.celda-total {
+    background: #f0fdf4;
+    border-top: 2px solid #bbf7d0;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #14532d;
+  }
+
+  #result-table tbody td.celda-total::before {
+    color: #166534;
+  }
+
+  /* ── Bloque de totales: lista compacta, no tarjetas ──────────────────── */
+  #result-table tbody tr.summary-row,
+  #result-table tbody tr.additional-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 11px 14px;
+  }
+
+  #result-table tbody tr.summary-row {
+    background: #e8f5e9;
+  }
+
+  #result-table tbody tr.additional-row {
+    background: #fff3e0;
+  }
+
+  /* La celda vacía que ocupa 10 columnas no pinta nada en móvil */
+  #result-table tbody td[colspan="10"] {
+    display: none;
+  }
+
+  #result-table tbody tr.summary-row td,
+  #result-table tbody tr.additional-row td {
+    display: block;
+    padding: 0;
+    border: none;
+    background: none;
+    min-width: 0 !important;
+    font-size: 0.95rem;
+  }
+
+  #result-table tbody td.resumen-etiqueta {
+    text-align: left;
+    font-size: 0.85rem;
+  }
+
+  #result-table tbody td.resumen-valor {
+    text-align: right;
+    font-size: 1rem;
+    white-space: nowrap;
+  }
+
+  /* Primera fila de totales: separada del último acto */
+  #result-table tbody tr.summary-row:first-of-type {
+    margin-top: 6px;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+  }
+
+  /* Fila de nota informativa */
+  #result-table tbody td[colspan="12"] {
+    display: block;
+    background: #f0fdf4;
+    border-radius: 12px;
+    margin-top: 10px;
+  }
+
+  /* ── Escrituras y Evidencias: siguen con desplazamiento lateral ───────── */
+  .table-scroll.compacta {
+    overflow-x: auto;
+  }
+
+  .scroll-hint.compacta {
+    display: block;
+  }
+
+  .table-scroll .tabla-compacta th,
+  .table-scroll .tabla-compacta td {
     padding-left: 8px;
     padding-right: 8px;
   }
 
-  /* Primera columna fija para no perder de vista la referencia al desplazar */
-  .table-scroll table th:first-child,
-  .table-scroll table td:first-child {
+  .table-scroll .tabla-compacta th:first-child,
+  .table-scroll .tabla-compacta td:first-child {
     position: sticky;
     left: 0;
     z-index: 2;
     box-shadow: 2px 0 4px rgba(0, 0, 0, 0.06);
   }
 
-  /* Las filas de totales/notas ocupan varias columnas: no deben quedar fijas */
-  .table-scroll table td:first-child[colspan] {
-    position: static;
-    box-shadow: none;
-  }
-
-  .table-scroll table th:first-child {
-    background-color: #4caf50;
+  /* La columna fija necesita fondo propio para tapar lo que pasa por debajo */
+  .table-scroll .tabla-compacta th:first-child {
+    background-color: #166534;
     z-index: 3;
   }
 
-  .table-scroll table td:first-child {
-    background-color: #ffffff;
-  }
-
-  .table-scroll table .summary-row td:first-child {
-    background-color: #e8f5e9;
-  }
-
-  .table-scroll table .additional-row td:first-child {
-    background-color: #fff3e0;
-  }
-
-  /* Tablas de Escrituras y Evidencias: cabecera verde oscuro y celdas blancas */
-  .table-scroll table.tabla-compacta th:first-child {
-    background-color: #166534;
-  }
-
-  .table-scroll table.tabla-compacta td:first-child {
+  .table-scroll .tabla-compacta td:first-child {
     background-color: #ffffff;
   }
 

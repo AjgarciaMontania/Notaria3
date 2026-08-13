@@ -208,8 +208,8 @@ export default function Evidencias({ isAdmin }) {
             </p>
           ) : (
             <>
-            <p className="scroll-hint">← Desliza la tabla hacia los lados para ver todas las columnas →</p>
-            <div className="table-scroll">
+            <p className="scroll-hint compacta">← Desliza la tabla hacia los lados para ver todas las columnas →</p>
+            <div className="table-scroll compacta">
             <table className="tabla-compacta" style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#166534", color: "white" }}>

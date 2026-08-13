@@ -204,9 +204,9 @@ export default function EscriturasPendientes({ isAdmin }) {
 
       {/* TABLA DE REGISTROS */}
       {escrituras.length > 0 && (
-        <p className="scroll-hint">← Desliza la tabla hacia los lados para ver todas las columnas →</p>
+        <p className="scroll-hint compacta">← Desliza la tabla hacia los lados para ver todas las columnas →</p>
       )}
-      <div className="table-scroll">
+      <div className="table-scroll compacta">
       {/* Anchos mínimos en píxeles definidos en index.css (.tabla-escrituras) */}
       <table className="tabla-compacta tabla-escrituras" style={{ width: "100%", borderCollapse: "collapse", background: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
         <thead>
