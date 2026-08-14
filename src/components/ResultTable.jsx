@@ -272,11 +272,18 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
             const varios = b.items.length > 1;
             const conMora = doc && doc.mora > 0;
 
+            // La clave del bloque cambia cada vez que se escribe una letra del
+            // número de escritura. Usarla como `key` de React haría que la fila
+            // se desmontara y volviera a montar en cada tecla, perdiendo el
+            // foco del teclado. El índice del primer acto no cambia nunca:
+            // es la identidad estable de la fila.
+            const claveReact = `bloque-${b.items[0].indice}`;
+
             // ── Un solo acto: fila corriente, como siempre ──────────────────
             if (!varios) {
               const { fila, indice } = b.items[0];
               return (
-                <tr key={b.clave} style={conMora ? { background: "#fffbeb" } : {}}>
+                <tr key={claveReact} style={conMora ? { background: "#fffbeb" } : {}}>
                   <td className="celda-acto">{fila.acto}</td>
                   <td data-label="N° ESCRITURA">
                     <textarea
@@ -308,7 +315,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
 
             // ── Varios actos: bloque con encabezado y una sola mora ─────────
             return (
-              <React.Fragment key={b.clave}>
+              <React.Fragment key={claveReact}>
                 {/* Encabezado del documento */}
                 <tr className="doc-cabecera">
                   <td colSpan={NUM_COLUMNAS}>
