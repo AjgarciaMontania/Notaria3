@@ -29,7 +29,15 @@ export const ACTOS_CONFIG = {
   "HIPOTECA CON BANCO AGRARIO": {
     tributariaRate: 0.005,
     oripTipo: "cuantia",
-    oripExtras: 24300 + 17300, // Certificado Tradición ($24.300) + Constancia Inscripción ($17.300) — RES-2026-001726-6
+    // Constancia de inscripción: entra al subtotal del registro y sí paga el 2%.
+    oripExtras: 17300,
+    // Certificado de tradición: la ORIP lo cobra como un trámite APARTE y no
+    // paga el 2% de conservación documental. Confirmado con el recibo de la
+    // escritura 089 (18/06/2026): registro $172.200 + 2% = $175.600, y el
+    // certificado $24.300 se suma después, sin recargo.
+    // Antes iban sumados como $41.600 y el 2% caía también sobre el
+    // certificado, cobrando $500 de más en cada hipoteca.
+    oripFueraDel2: 24300, // RES-2026-001726-6
     honorarioContable: true,
   },
   "CERTIFICADO CANCELACIÓN HIPOTECA": {

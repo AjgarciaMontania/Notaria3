@@ -1014,3 +1014,45 @@ input:focus {
   padding: 0;
   cursor: pointer;
 }
+
+/* ── Escrituras con varios actos en la lámina ────────────────────────────────
+   La Gobernación liquida los actos de una misma escritura como un solo
+   documento y cobra una única línea de mora. La lámina se arma igual. */
+
+.lamina-doc-cabecera {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #ecfdf5;
+  border-left: 3px solid var(--verde);
+  border-radius: 6px;
+  padding: 7px 10px;
+  margin-bottom: 10px;
+}
+
+.lamina-doc-cabecera strong {
+  font-size: 0.85rem;
+  color: var(--verde);
+}
+
+.lamina-doc-cabecera span {
+  font-size: 0.74rem;
+  color: var(--gris);
+}
+
+.lamina-subacto {
+  padding-left: 8px;
+  margin-bottom: 10px;
+  border-left: 2px solid #d1fae5;
+}
+
+.lamina-subtotal-acto {
+  margin-top: 3px;
+  font-weight: 600;
+}
+
+.lamina-cierre-doc {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--borde);
+}

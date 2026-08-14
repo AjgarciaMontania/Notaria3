@@ -282,7 +282,7 @@ td input[type="date"] {
 #result-table th:nth-child(6)  { min-width: 150px; }
 #result-table th:nth-child(7)  { min-width: 112px; text-align: right; }
 #result-table th:nth-child(8)  { min-width: 72px;  text-align: center; }
-#result-table th:nth-child(9)  { min-width: 78px;  text-align: center; }
+#result-table th:nth-child(9)  { min-width: 96px;  text-align: center; }
 #result-table th:nth-child(10) { min-width: 100px; text-align: right; }
 #result-table th:nth-child(11) { min-width: 112px; text-align: right; }
 #result-table th:nth-child(12) { min-width: 125px; text-align: right; }
@@ -1033,4 +1033,114 @@ tbody tr.summary-row:first-of-type td {
   .input-card {
     padding: 1rem 0.8rem;
   }
+}
+/* ── Escrituras con varios actos ─────────────────────────────────────────────
+   Una escritura puede traer varios actos. La Gobernación los liquida como un
+   solo documento y cobra una única línea de intereses de mora. Aquí se pintan
+   igual: un encabezado con los datos de la escritura, los actos debajo y la
+   mora una sola vez al pie. Un acto solo sigue siendo una fila corriente. */
+
+#result-table tr.doc-cabecera td {
+  background: #166534;
+  padding: 8px 12px;
+  border-top: 3px solid #0f4425;
+}
+
+.doc-cabecera-caja {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  color: white;
+}
+
+.doc-cabecera-caja label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #bbf7d0;
+}
+
+.doc-icono { font-size: 1.1rem; }
+
+.doc-cabecera-caja input {
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #14532d;
+  background: white;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+.doc-numero { width: 110px; text-transform: none; }
+.doc-fecha { width: 140px; }
+
+.doc-pastilla {
+  background: #bbf7d0;
+  color: #14532d;
+  font-size: 0.78rem;
+  font-weight: bold;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.doc-vence {
+  font-size: 0.78rem;
+  color: #bbf7d0;
+  margin-left: auto;
+}
+
+#result-table tr.doc-acto td { background: #f8fdf9; }
+
+.doc-vineta { color: #86efac; font-weight: bold; margin-right: 4px; }
+
+.doc-heredado,
+.doc-mora-aparte {
+  text-align: center;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: #9ca3af;
+}
+
+#result-table tr.doc-pie td {
+  background: #ecfdf5;
+  border-bottom: 3px solid #166534;
+  font-weight: bold;
+}
+
+#result-table tr.doc-pie.con-mora td { background: #fffbeb; }
+
+.doc-pie-etiqueta {
+  text-align: right;
+  color: #166534;
+  font-size: 0.9rem;
+}
+
+#result-table tr.doc-pie.con-mora .doc-pie-etiqueta { color: #92400e; }
+
+.doc-pie-detalle {
+  display: block;
+  font-weight: normal;
+  font-size: 0.76rem;
+  color: #6b7280;
+}
+
+.doc-pie-total { font-size: 1.02rem; }
+
+@media (max-width: 700px) {
+  .doc-vence { margin-left: 0; width: 100%; }
+  .doc-pie-etiqueta { font-size: 0.82rem; }
+}
+
+/* El porcentaje de mora puede llevar 2 decimales (27,66): que no se corte. */
+#result-table .input-tasa {
+  font-size: 0.86rem;
+  padding: 5px 2px;
+  box-sizing: border-box;
 }

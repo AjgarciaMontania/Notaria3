@@ -11,7 +11,7 @@
 // Si cambian las tarifas, se cambian AQUÍ y las dos aplicaciones quedan al día.
 // ─────────────────────────────────────────────────────────────────────────────
 import { ACTOS_CONFIG } from "./actosConfig.js";
-import { getTasaHistorica } from "./tasasHistoricas.js";
+import { getUsuraDelMes, claveMes } from "./tasasHistoricas.js";
 
 // ── Tarifas ORIP 2026 (RES-2026-001726-6) ──────────────────────────────────
 export const SIN_CUANTIA_BASE = 29500;
@@ -37,9 +37,25 @@ export const HONORARIOS_RATES = {
 };
 
 // ── Mora por extemporaneidad ────────────────────────────────────────────────
-// Tasa de respaldo, derivada de recibos reales de la Gobernación del Caquetá:
-// $18.000 de mora / ($250.000 base × 106 días) × 365 = 24,79% anual.
-// Solo se usa cuando el mes no está en la tabla histórica.
+//
+// Confirmado contra 8 recibos reales de la Gobernación del Caquetá
+// (jul–ago 2026), los ocho reproducidos al peso:
+//
+//   1. La tasa NO es la usura: es la usura MENOS 2 puntos porcentuales
+//      (Estatuto Tributario, art. 635).
+//   2. Los intereses se acumulan DÍA POR DÍA, y cada día lleva la tasa del
+//      mes al que pertenece. No existe una sola tasa para todo el periodo.
+//   3. En años bisiestos el año se divide entre 366.
+//   4. El resultado se redondea al millar más cercano.
+//
+// Antes se aplicaba una única tasa a todo el periodo, con una regla de "enero
+// del año de pago" deducida de tres recibos. Era una coincidencia: fallaba
+// tanto por exceso como por defecto según el caso.
+
+/** Puntos que se restan a la usura para obtener la mora (art. 635 E.T.). */
+export const DESCUENTO_MORA = 0.02;
+
+/** Tasa de respaldo, solo si no hay ninguna tabla disponible. */
 export const MORA_ANNUAL_RATE = 0.2479;
 
 /** Días calendario entre dos fechas "YYYY-MM-DD" (usa mediodía para evitar DST). */
@@ -60,22 +76,76 @@ export function fechaVencimiento(fechaEscritura) {
   return d.toISOString().split("T")[0];
 }
 
+function esBisiesto(anio) {
+  return (anio % 4 === 0 && anio % 100 !== 0) || anio % 400 === 0;
+}
+
 /**
- * Días vencidos e intereses de mora de una escritura.
- * La Gobernación redondea la mora al millar más cercano (confirmado en todos
- * los recibos: $31.000, $28.000, $37.000, $3.000…).
+ * Intereses de mora de un documento, sumando día por día.
+ *
+ * @param {string} fechaEscritura
+ * @param {number} tributaria      base sobre la que corre la mora
+ * @param {string} fechaPago
+ * @param {Object} opciones
+ *   @param {Object} opciones.tasasHistoricas  mapa "YYYY-MM" → usura decimal
+ *   @param {number} [opciones.tasaFija]       si se indica, se usa esa tasa de
+ *                                             MORA plana para todo el periodo
+ *                                             (escape manual desde la tabla)
+ *   @param {number} [opciones.tasaRespaldo]   usura a usar si falta un mes
+ *
+ * @returns {{ diasVencidos, mora, moraExacta, desglose, mesesSinTasa }}
  */
-export function calcularMoraEscritura(fechaEscritura, tributaria, fechaPago, tasaAnual = MORA_ANNUAL_RATE) {
-  if (!fechaEscritura || !tributaria || tributaria <= 0) {
-    return { diasVencidos: 0, mora: 0 };
-  }
+export function calcularMoraEscritura(fechaEscritura, tributaria, fechaPago, opciones = {}) {
+  const { tasasHistoricas = {}, tasaFija = null, tasaRespaldo = null } = opciones;
+
+  const vacio = { diasVencidos: 0, mora: 0, moraExacta: 0, desglose: [], mesesSinTasa: [] };
+  if (!fechaEscritura || !fechaPago || !tributaria || tributaria <= 0) return vacio;
+
   const venc = fechaVencimiento(fechaEscritura);
   const diasVencidos = Math.max(0, diasEntre(venc, fechaPago));
-  if (diasVencidos === 0) return { diasVencidos: 0, mora: 0 };
+  if (diasVencidos === 0) return vacio;
 
-  const rateDiaria = tasaAnual / 365;
-  const mora = Math.round((tributaria * rateDiaria * diasVencidos) / 1000) * 1000;
-  return { diasVencidos, mora };
+  const inicio = new Date(venc + "T12:00:00");
+  const fin = new Date(fechaPago + "T12:00:00");
+
+  let acumulado = 0;
+  const porMes = new Map();
+  const mesesSinTasa = new Set();
+
+  for (const d = new Date(inicio); d < fin; d.setDate(d.getDate() + 1)) {
+    const anio = d.getFullYear();
+    const clave = claveMes(anio, d.getMonth() + 1);
+
+    let tasaDia;
+    if (tasaFija != null) {
+      tasaDia = tasaFija;
+    } else {
+      const usura = getUsuraDelMes(clave, tasasHistoricas);
+      if (usura == null) {
+        mesesSinTasa.add(clave);
+        if (tasaRespaldo == null) continue; // sin tasa: ese día no suma, y se avisa
+        tasaDia = tasaRespaldo - DESCUENTO_MORA;
+      } else {
+        tasaDia = usura - DESCUENTO_MORA;
+      }
+    }
+
+    const delDia = tributaria * (tasaDia / (esBisiesto(anio) ? 366 : 365));
+    acumulado += delDia;
+
+    const fila = porMes.get(clave) || { mes: clave, dias: 0, tasa: tasaDia, valor: 0 };
+    fila.dias += 1;
+    fila.valor += delDia;
+    porMes.set(clave, fila);
+  }
+
+  return {
+    diasVencidos,
+    mora: Math.round(acumulado / 1000) * 1000,
+    moraExacta: acumulado,
+    desglose: [...porMes.values()],
+    mesesSinTasa: [...mesesSinTasa],
+  };
 }
 
 /** Derecho base de ORIP, sin el 2% de conservación documental. */
@@ -95,16 +165,22 @@ export function aNumero(texto) {
 /**
  * Liquida un conjunto de actos.
  *
+ * Los actos que comparten número de escritura y fecha forman UN DOCUMENTO: así
+ * los liquida la Gobernación, que cobra una sola línea de "intereses de mora"
+ * sobre la tributaria combinada del documento. Por eso el resultado trae, además
+ * de los actos, un arreglo `documentos` con la mora de cada escritura sin
+ * repartir entre sus actos.
+ *
  * @param {Array} actos  cada uno: { acto, numeroEscritura, fechaEscritura,
  *                       foliosAdicionales, valorActo, numActos, tasaAnual?,
  *                       tributariaManual? }
  * @param {Object} opciones
  *   @param {string} opciones.fechaPago        "YYYY-MM-DD"
- *   @param {number} opciones.tasaMoraDefault  respaldo si el mes no está en la tabla
- *   @param {Object} opciones.tasasHistoricas  mapa "YYYY-MM" → tasa decimal
+ *   @param {number} opciones.tasaMoraDefault  usura de respaldo si falta un mes
+ *   @param {Object} opciones.tasasHistoricas  mapa "YYYY-MM" → usura decimal
  *   @param {number|string} opciones.dineroEnviado
  *
- * @returns {{ actos: Array, totales: Object }}
+ * @returns {{ actos, documentos, totales, mesesSinTasa }}
  */
 export function liquidar(actos, opciones = {}) {
   const {
@@ -114,7 +190,7 @@ export function liquidar(actos, opciones = {}) {
     dineroEnviado = 0,
   } = opciones;
 
-  const TASA_EFECTIVA = tasaMoraDefault ?? MORA_ANNUAL_RATE;
+  const USURA_RESPALDO = tasaMoraDefault ?? MORA_ANNUAL_RATE;
 
   let tributariaTotal = 0;
   let oripTotal = 0;
@@ -147,7 +223,7 @@ export function liquidar(actos, opciones = {}) {
     if (config.oripTipo === "none") {
       if (fila.acto.includes("IGAC")) igacTotal += valor;
       if (esSaber) saberTotal += valor;
-      return { ...fila, tributaria: null, orip: null, total: valor };
+      return { ...fila, tributaria: null, orip: null, mora: 0, diasVencidos: 0, total: valor };
     }
 
     let tributaria = 0;
@@ -159,86 +235,90 @@ export function liquidar(actos, opciones = {}) {
       tributaria = config.tributaria;
     }
 
-    // El 2% se aplica sobre el subtotal completo del acto y luego se redondea
-    // a la centena más cercana (Art. 25).
+    // El 2% de sistematización y conservación documental (Art. 25) se aplica
+    // sobre el derecho de registro, y luego se redondea a la centena.
+    //
+    // `oripFueraDel2` queda por fuera de ese 2%: es el caso del certificado de
+    // tradición de la hipoteca, que la ORIP cobra como un trámite aparte. El
+    // recibo de la escritura 089 lo confirma: registro $172.200 + 2% = $175.600,
+    // y el certificado $24.300 se suma después, sin recargo.
     let orip = 0;
+    const fueraDel2 = config.oripFueraDel2 || 0;
     if (config.oripTipo === "cuantia") {
       const base = calcOripBase(valor) + (config.oripExtras || 0);
       const subtotal = base + FOLIO_ADICIONAL * foliosAdic;
-      orip = Math.round((subtotal * FEE_CONSTANTS.ADDITIONAL_RATE) / 100) * 100;
+      orip = Math.round((subtotal * FEE_CONSTANTS.ADDITIONAL_RATE) / 100) * 100 + fueraDel2;
     } else if (config.oripTipo === "sin_cuantia") {
       const numActos = fila.numActos || 1;
       const subtotal = SIN_CUANTIA_BASE * numActos + FOLIO_ADICIONAL * foliosAdic;
-      orip = Math.round((subtotal * FEE_CONSTANTS.ADDITIONAL_RATE) / 100) * 100;
+      orip = Math.round((subtotal * FEE_CONSTANTS.ADDITIONAL_RATE) / 100) * 100 + fueraDel2;
     }
 
     tributariaTotal += tributaria;
     oripTotal += orip;
 
-    return { ...fila, tributaria, orip, _base: tributaria + orip, mora: 0, diasVencidos: 0 };
+    return { ...fila, tributaria, orip, mora: 0, diasVencidos: 0, total: tributaria + orip };
   });
 
-  // ── PASO 2: mora agrupada por escritura ───────────────────────────────────
-  // Los actos con el mismo número + fecha comparten la base de mora, tal como
-  // lo liquida la Gobernación: sobre la tributaria combinada del documento.
+  // ── PASO 2: agrupar los actos por documento ───────────────────────────────
+  // Mismo número de escritura + misma fecha = un solo documento.
   const grupos = new Map();
   calculados.forEach((fila, idx) => {
-    if (fila.tributaria === null || fila.tributaria <= 0 || !fila.fechaEscritura) return;
-    const numEsc = fila.numeroEscritura?.trim();
-    const clave = numEsc ? `${numEsc}||${fila.fechaEscritura}` : `__solo__${idx}`;
+    if (fila.tributaria === null) return;
+    const numEsc = String(fila.numeroEscritura ?? "").trim();
+    const clave = numEsc ? `${numEsc}||${fila.fechaEscritura}` : `__suelto__${idx}`;
     if (!grupos.has(clave)) {
-      grupos.set(clave, { fechaEscritura: fila.fechaEscritura, tasaAnual: null, indices: [], total: 0 });
+      grupos.set(clave, {
+        clave,
+        numeroEscritura: numEsc,
+        fechaEscritura: fila.fechaEscritura,
+        indices: [],
+        tributaria: 0,
+        orip: 0,
+        tasaManual: null,
+      });
     }
     const g = grupos.get(clave);
     g.indices.push(idx);
-    g.total += fila.tributaria;
-    // La primera tasa editada a mano dentro del grupo tiene prioridad
-    if (fila.tasaAnual != null && g.tasaAnual == null) g.tasaAnual = fila.tasaAnual;
+    g.tributaria += fila.tributaria;
+    g.orip += fila.orip || 0;
+    // La primera tasa editada a mano dentro del grupo manda sobre la tabla
+    if (fila.tasaAnual != null && g.tasaManual == null) g.tasaManual = fila.tasaAnual;
   });
 
-  const moraIdx = new Array(calculados.length).fill(0);
-  const diasIdx = new Array(calculados.length).fill(0);
-  const tasaIdx = new Array(calculados.length).fill(TASA_EFECTIVA);
+  // ── PASO 3: mora de cada documento, día por día ───────────────────────────
+  const mesesSinTasa = new Set();
+  const documentos = [];
 
   grupos.forEach((g) => {
-    if (!fechaPago || g.total <= 0) return;
-    const venc = fechaVencimiento(g.fechaEscritura);
-    const tasa = g.tasaAnual ?? getTasaHistorica(venc, fechaPago, tasasHistoricas) ?? TASA_EFECTIVA;
-    const { diasVencidos, mora: moraGrupo } = calcularMoraEscritura(
-      g.fechaEscritura, g.total, fechaPago, tasa
-    );
-    if (moraGrupo === 0) return;
-    moraTotal += moraGrupo;
-
-    // La mora del documento se reparte entre sus actos, en proporción a la
-    // tributaria de cada uno. El remanente exacto va al último para que la
-    // suma cuadre al peso.
-    let asignada = 0;
-    g.indices.forEach((idx, i) => {
-      let parte;
-      if (i === g.indices.length - 1) {
-        parte = moraGrupo - asignada;
-      } else {
-        parte = Math.round((moraGrupo * (calculados[idx].tributaria / g.total)) / 100) * 100;
-        asignada += parte;
-      }
-      moraIdx[idx] = parte;
-      diasIdx[idx] = diasVencidos;
-      tasaIdx[idx] = tasa;
+    const r = calcularMoraEscritura(g.fechaEscritura, g.tributaria, fechaPago, {
+      tasasHistoricas,
+      tasaFija: g.tasaManual,
+      tasaRespaldo: USURA_RESPALDO,
     });
-  });
+    r.mesesSinTasa.forEach((m) => mesesSinTasa.add(m));
+    moraTotal += r.mora;
 
-  // ── PASO 3: aplicar la mora a cada acto ───────────────────────────────────
-  const finales = calculados.map((fila, idx) => {
-    if (fila.tributaria === null) return fila;
-    const { _base, ...resto } = fila;
-    return {
-      ...resto,
-      mora: moraIdx[idx],
-      diasVencidos: diasIdx[idx],
-      tasaAnual: tasaIdx[idx],
-      total: _base + moraIdx[idx],
-    };
+    // Los días quedan también en cada acto, para poder mostrarlos en la fila
+    g.indices.forEach((idx) => {
+      calculados[idx].diasVencidos = r.diasVencidos;
+    });
+
+    documentos.push({
+      clave: g.clave,
+      numeroEscritura: g.numeroEscritura,
+      fechaEscritura: g.fechaEscritura,
+      indices: g.indices,
+      vence: g.fechaEscritura ? fechaVencimiento(g.fechaEscritura) : "",
+      tributaria: g.tributaria,
+      orip: g.orip,
+      diasVencidos: r.diasVencidos,
+      mora: r.mora,
+      moraExacta: r.moraExacta,
+      desglose: r.desglose,
+      tasaManual: g.tasaManual,
+      total: g.tributaria + g.orip + r.mora,
+    });
   });
 
   // ── PASO 4: totales ───────────────────────────────────────────────────────
@@ -249,7 +329,9 @@ export function liquidar(actos, opciones = {}) {
   const enviado = aNumero(dineroEnviado);
 
   return {
-    actos: finales,
+    actos: calculados,
+    documentos,
+    mesesSinTasa: [...mesesSinTasa].sort(),
     totales: {
       tributariaTotal,
       oripTotal,

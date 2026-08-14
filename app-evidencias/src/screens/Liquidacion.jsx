@@ -46,7 +46,13 @@ export default function Liquidacion({ onSalir }) {
     [actos, fechaPago, tasaAnual, tasasHistoricas, dineroEnviado]
   );
 
-  const { totales } = resultado;
+  const { totales, documentos = [], mesesSinTasa = [] } = resultado;
+
+  // Actos que no pasan por ORIP (IGAC, escritura para saber): no forman
+  // documento, se muestran sueltos al final.
+  const sueltos = resultado.actos
+    .map((a, i) => ({ a, i }))
+    .filter(({ a }) => a.tributaria === null);
 
   const guardarActo = (e) => {
     e.preventDefault();
@@ -213,6 +219,14 @@ export default function Liquidacion({ onSalir }) {
       <main className="contenido">
         {aviso && <div className={`aviso ${aviso.tipo}`}>{aviso.texto}</div>}
 
+        {mesesSinTasa.length > 0 && (
+          <div className="aviso error">
+            ⚠ Faltan las tasas de usura de {mesesSinTasa.join(", ")}. Esos días no
+            se cobraron: la mora quedó por debajo de lo real. Pídele al
+            administrador que las cargue en la página.
+          </div>
+        )}
+
         <div className="campo">
           <label htmlFor="fpago">📅 Fecha de pago / registro ORIP</label>
           <input
@@ -255,37 +269,78 @@ export default function Liquidacion({ onSalir }) {
                 </div>
               </div>
 
-              {resultado.actos.map((a, i) => (
-                <div className="lamina-acto" key={i}>
+              {documentos.map((doc) => {
+                const suyos = doc.indices.map((i) => resultado.actos[i]);
+                const varios = suyos.length > 1;
+                return (
+                  <div className="lamina-acto" key={doc.clave}>
+                    {/* Encabezado: solo cuando la escritura trae varios actos */}
+                    {varios && (
+                      <div className="lamina-doc-cabecera">
+                        <strong>📄 Escritura N° {doc.numeroEscritura || "—"}</strong>
+                        <span>{doc.fechaEscritura} · {suyos.length} actos</span>
+                      </div>
+                    )}
+
+                    {suyos.map((a, j) => (
+                      <div key={j} className={varios ? "lamina-subacto" : ""}>
+                        <div className="lamina-acto-titulo">
+                          <strong>{varios ? `└ ${a.acto}` : a.acto}</strong>
+                          {!varios && a.numeroEscritura && <span>N° {a.numeroEscritura}</span>}
+                        </div>
+                        <div className="lamina-detalle">
+                          {!varios && a.fechaEscritura && (
+                            <div><span>Fecha</span><span>{a.fechaEscritura}</span></div>
+                          )}
+                          {a.valorActo && (
+                            <div><span>Valor del acto</span><span>{a.valorActo}</span></div>
+                          )}
+                          {a.foliosAdicionales > 0 && (
+                            <div><span>Folios adicionales</span><span>{a.foliosAdicionales}</span></div>
+                          )}
+                          <div><span>Tributaria</span><span>{formatCOP(a.tributaria)}</span></div>
+                          <div><span>ORIP</span><span>{formatCOP(a.orip)}</span></div>
+                          {varios && (
+                            <div className="lamina-subtotal-acto">
+                              <span>Subtotal del acto</span><span>{formatCOP(a.total)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* La mora se cobra UNA sola vez por escritura */}
+                    <div className="lamina-detalle lamina-cierre-doc">
+                      {doc.diasVencidos > 0 ? (
+                        <>
+                          <div><span>Días vencidos</span><span>{doc.diasVencidos}</span></div>
+                          <div>
+                            <span>
+                              Intereses de mora
+                              {doc.desglose.length > 1 && ` (${doc.desglose.length} meses)`}
+                            </span>
+                            <span>{formatCOP(doc.mora)}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div><span>Mora</span><span>Dentro del plazo</span></div>
+                      )}
+                      <div className="lamina-total-acto">
+                        <span>{varios ? "Total de la escritura" : "Total del acto"}</span>
+                        <span>{formatCOP(doc.total)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {sueltos.map(({ a, i }) => (
+                <div className="lamina-acto" key={`suelto-${i}`}>
                   <div className="lamina-acto-titulo">
                     <strong>{a.acto}</strong>
                     {a.numeroEscritura && <span>N° {a.numeroEscritura}</span>}
                   </div>
                   <div className="lamina-detalle">
-                    {a.fechaEscritura && (
-                      <div><span>Fecha</span><span>{a.fechaEscritura}</span></div>
-                    )}
-                    {a.valorActo && (
-                      <div><span>Valor del acto</span><span>{a.valorActo}</span></div>
-                    )}
-                    {a.foliosAdicionales > 0 && (
-                      <div><span>Folios adicionales</span><span>{a.foliosAdicionales}</span></div>
-                    )}
-                    {a.tributaria !== null && (
-                      <div><span>Tributaria</span><span>{formatCOP(a.tributaria)}</span></div>
-                    )}
-                    {a.mora > 0 && (
-                      <>
-                        <div><span>Días vencidos</span><span>{a.diasVencidos}</span></div>
-                        <div>
-                          <span>Mora ({(a.tasaAnual * 100).toFixed(2)}%)</span>
-                          <span>{formatCOP(a.mora)}</span>
-                        </div>
-                      </>
-                    )}
-                    {a.orip !== null && (
-                      <div><span>ORIP</span><span>{formatCOP(a.orip)}</span></div>
-                    )}
                     <div className="lamina-total-acto">
                       <span>Total del acto</span><span>{formatCOP(a.total || 0)}</span>
                     </div>
