@@ -268,8 +268,9 @@ td input[type="date"] {
 }
 
 /* ── Anchos mínimos de la tabla de liquidación ─────────────────────────── */
-/* Los 12 anchos suman ~1364px, justo por debajo del contenedor de 1380px:
-   en escritorio la tabla entra completa sin desplazamiento lateral. */
+/* Anchos mínimos en píxeles: ninguna columna se aplasta ni los títulos se
+   parten letra por letra. Estos son los cómodos, que se usan en tablet y en
+   monitores grandes; más abajo hay un bloque compacto para portátiles. */
 #result-table {
   min-width: 1360px;
 }
@@ -1143,4 +1144,86 @@ tbody tr.summary-row:first-of-type td {
   font-size: 0.86rem;
   padding: 5px 2px;
   box-sizing: border-box;
+}
+
+
+/* ── Modo compacto para portátiles ───────────────────────────────────────────
+   En un portátil de 14 o 15 pulgadas hay unos 1.250 px útiles, y la tabla
+   cómoda pide 1.360: aparecía desplazamiento lateral y el nombre del acto se
+   perdía por la izquierda al desplazarse.
+   Aquí se conservan las 12 columnas —para no perder ningún dato de la
+   liquidación— reduciendo tipografía, relleno y anchos mínimos. La suma baja
+   a unos 1.070 px, así que entra completa.
+   Arranca en 769 px, justo donde termina la vista de fichas del celular, y
+   llega hasta 1.600 px; por encima hay sitio de sobra para la tabla cómoda.
+   Entre 769 y 1.100 px (tablets) todavía puede quedar algo de desplazamiento,
+   pero mucho menor que con la tabla cómoda. */
+@media (min-width: 769px) and (max-width: 1600px) {
+  #result-table {
+    min-width: 0;
+  }
+
+  #result-table th {
+    padding: 8px 4px;
+    font-size: 0.64rem;
+    letter-spacing: 0;
+    /* Que el título pueda ocupar dos líneas en vez de ensanchar la columna.
+       Se parte entre palabras, nunca letra por letra. */
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: normal;
+    hyphens: none;
+  }
+
+  #result-table td {
+    padding: 6px 4px;
+    font-size: 0.78rem;
+  }
+
+  #result-table td input,
+  #result-table td textarea {
+    padding: 5px 5px;
+    font-size: 0.75rem;
+  }
+
+  #result-table td textarea {
+    min-height: 32px;
+  }
+
+  #result-table th:nth-child(1)  { min-width: 110px; }
+  #result-table th:nth-child(2)  { min-width: 74px;  }
+  #result-table th:nth-child(3)  { min-width: 106px; }
+  #result-table th:nth-child(4)  { min-width: 48px;  }
+  #result-table th:nth-child(5)  { min-width: 48px;  }
+  #result-table th:nth-child(6)  { min-width: 98px; }
+  #result-table th:nth-child(7)  { min-width: 86px;  }
+  #result-table th:nth-child(8)  { min-width: 42px;  }
+  #result-table th:nth-child(9)  { min-width: 68px;  }
+  #result-table th:nth-child(10) { min-width: 82px;  }
+  #result-table th:nth-child(11) { min-width: 90px;  }
+  #result-table th:nth-child(12) { min-width: 98px;  }
+
+  /* Piezas del bloque de escritura con varios actos */
+  .doc-cabecera-caja { gap: 0.5rem; }
+  .doc-cabecera-caja label { font-size: 0.72rem; }
+  .doc-cabecera-caja input { font-size: 0.85rem; padding: 4px 6px; }
+  .doc-numero { width: 88px; }
+  .doc-fecha { width: 122px; }
+  .doc-pastilla { font-size: 0.7rem; padding: 2px 8px; }
+  .doc-vence { font-size: 0.7rem; }
+  .doc-heredado, .doc-mora-aparte { font-size: 0.7rem; }
+  .doc-pie-etiqueta { font-size: 0.8rem; }
+  .doc-pie-detalle { font-size: 0.7rem; }
+  #result-table .input-tasa { font-size: 0.76rem; padding: 4px 1px; }
+}
+
+/* ── Monitores grandes ───────────────────────────────────────────────────────
+   Por encima de 1.600 px vuelve la tabla cómoda (letra y espacios normales),
+   que necesita cerca de 1.510 px. El contenedor estaba topado en 1.380 px, así
+   que la tabla se salía y reaparecía el desplazamiento lateral justo donde
+   más espacio hay. Aquí se le da al contenedor el ancho que la tabla pide. */
+@media (min-width: 1601px) {
+  #output-section {
+    max-width: 1560px;
+  }
 }

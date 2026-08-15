@@ -9,6 +9,7 @@ import Recibidos from './screens/Recibidos.jsx';
 import Escrituras from './screens/Escrituras.jsx';
 import Liquidacion from './screens/Liquidacion.jsx';
 import { MINUTOS_INACTIVIDAD } from './config.js';
+import { marcarActividad, sesionExpirada } from './lib/inactividad.js';
 import { puedeOperar } from '@calculo/roles.js';
 import { useRol } from './lib/rol.js';
 import { escucharCarpetas, escucharArchivos } from './lib/evidencias.js';
@@ -54,28 +55,72 @@ export default function App() {
     });
   }, []);
 
+  // Se pinta en la pantalla de acceso para explicar por qué se cerró sola.
+  const [cerradaPorInactividad, setCerradaPorInactividad] = useState(false);
+
   const salir = useCallback(async () => {
     setCarpetaActual(null);
     await cerrarSesion();
   }, []);
 
-  // Cierre automático por inactividad
+  const cerrarPorInactividad = useCallback(async () => {
+    setCerradaPorInactividad(true);
+    await salir();
+  }, [salir]);
+
+  // ── Cierre automático por inactividad ─────────────────────────────────────
+  //
+  // Son tres cosas a la vez, y las tres hacen falta:
+  //
+  //   1. Al arrancar con una sesión restaurada, se comprueba cuánto tiempo
+  //      pasó desde la última actividad. Esto es lo que cierra la sesión
+  //      después de cerrar la app, matarla o instalar una actualización.
+  //   2. Mientras la app está abierta, un temporizador la cierra si nadie
+  //      toca la pantalla.
+  //   3. Al volver del segundo plano se vuelve a comprobar, porque en Android
+  //      los temporizadores no corren de forma fiable con la app en segundo
+  //      plano.
   useEffect(() => {
     if (!autenticado) return;
 
-    const reiniciar = () => {
-      if (temporizador.current) clearTimeout(temporizador.current);
-      temporizador.current = setTimeout(salir, MINUTOS_INACTIVIDAD * 60 * 1000);
-    };
+    // (1) Sesión restaurada: ¿sigue vigente?
+    if (sesionExpirada(MINUTOS_INACTIVIDAD)) {
+      cerrarPorInactividad();
+      return;
+    }
+    marcarActividad();
 
+    // (2) Temporizador mientras la app está a la vista
+    const reiniciar = () => {
+      marcarActividad();
+      if (temporizador.current) clearTimeout(temporizador.current);
+      temporizador.current = setTimeout(cerrarPorInactividad, MINUTOS_INACTIVIDAD * 60 * 1000);
+    };
     reiniciar();
+
     const eventos = ['click', 'touchstart', 'keydown'];
     eventos.forEach((e) => window.addEventListener(e, reiniciar, { passive: true }));
+
+    // (3) Ida y vuelta al segundo plano
+    const alCambiarVisibilidad = () => {
+      if (document.visibilityState === 'hidden') {
+        // Se va al segundo plano: el reloj empieza a correr desde este momento
+        marcarActividad();
+        if (temporizador.current) clearTimeout(temporizador.current);
+      } else if (sesionExpirada(MINUTOS_INACTIVIDAD)) {
+        cerrarPorInactividad();
+      } else {
+        reiniciar();
+      }
+    };
+    document.addEventListener('visibilitychange', alCambiarVisibilidad);
+
     return () => {
       eventos.forEach((e) => window.removeEventListener(e, reiniciar));
+      document.removeEventListener('visibilitychange', alCambiarVisibilidad);
       if (temporizador.current) clearTimeout(temporizador.current);
     };
-  }, [autenticado, salir]);
+  }, [autenticado, cerrarPorInactividad]);
 
   // Datos en tiempo real (solo mientras hay sesión)
   useEffect(() => {
@@ -168,7 +213,14 @@ export default function App() {
     );
   }
 
-  if (!autenticado) return <Login />;
+  if (!autenticado) {
+    return (
+      <Login
+        cerradaPorInactividad={cerradaPorInactividad}
+        alEscribir={() => setCerradaPorInactividad(false)}
+      />
+    );
+  }
 
   // Se sabe que hay sesión pero todavía no de qué nivel: se espera. Decidir
   // antes de tiempo mostraría la pantalla equivocada durante un instante.

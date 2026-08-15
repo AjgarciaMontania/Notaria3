@@ -5,6 +5,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth } from '../firebase';
+import { marcarActividad, olvidarActividad } from './inactividad.js';
 
 // Firebase devuelve códigos en inglés; aquí se traducen.
 const MENSAJES = {
@@ -32,12 +33,16 @@ export function alCambiarSesion(callback) {
 
 export async function iniciarSesion(correo, clave) {
   // En el celular la sesión se recuerda entre aperturas de la app: sería
-  // insufrible escribir correo y contraseña cada vez. El cierre por
-  // inactividad sigue vigente.
+  // insufrible escribir correo y contraseña cada vez. Lo que la limita es el
+  // cierre por inactividad, que ahora sí funciona con la app cerrada.
   await signInWithEmailAndPassword(auth, correo.trim(), clave);
+  // El reloj de inactividad arranca aquí. Sin esta marca, la sesión recién
+  // abierta se consideraría vencida de inmediato.
+  marcarActividad();
 }
 
 export async function cerrarSesion() {
+  olvidarActividad();
   try {
     await signOut(auth);
   } catch (fallo) {

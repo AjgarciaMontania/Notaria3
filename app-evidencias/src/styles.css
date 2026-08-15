@@ -426,7 +426,16 @@ label {
   color: var(--texto);
 }
 
+/* Todos los campos de escritura comparten el mismo aspecto.
+   Antes aquí solo estaban 'text' y 'password': el correo, que es type='email',
+   se quedaba con el estilo por defecto del navegador y se veía más pequeño y
+   con otro borde que el de la contraseña. */
 input[type='text'],
+input[type='email'],
+input[type='tel'],
+input[type='search'],
+input[type='number'],
+input[type='date'],
 input[type='password'] {
   width: 100%;
   /* 16px evita que Android/iOS hagan zoom al enfocar el campo */
@@ -444,49 +453,122 @@ input:focus {
   background: white;
 }
 
-/* ── Login ──────────────────────────────────────────────────────────────── */
+/* ── Pantalla de acceso ─────────────────────────────────────────────────── */
 .login {
   min-height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1rem;
   padding: 1.5rem;
-  background: linear-gradient(160deg, var(--verde) 0%, #14532d 100%);
+  background: linear-gradient(160deg, var(--verde) 0%, #0f3d20 100%);
 }
 
 .login-caja {
   background: white;
-  border-radius: 20px;
-  padding: 2rem 1.5rem;
+  border-radius: 22px;
+  padding: 1.75rem 1.5rem 1.5rem;
   width: 100%;
   max-width: 400px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.3);
+}
+
+.login-marca {
   text-align: center;
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--borde);
 }
 
 .login-escudo {
-  font-size: 2.6rem;
-  margin-bottom: 0.5rem;
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+  margin-bottom: 0.6rem;
 }
 
 .login-caja h1 {
   color: var(--verde);
-  font-size: 1.7rem;
-  margin-bottom: 0.3rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .login-notaria {
-  color: var(--gris);
-  font-size: 0.9rem;
-  margin-bottom: 1.8rem;
-  line-height: 1.4;
+  color: var(--texto);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 2px;
 }
 
-.login-caja form {
-  text-align: left;
+.login-modulo {
+  display: inline-block;
+  margin-top: 0.6rem;
+  background: var(--verde-claro);
+  color: var(--verde);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+.login-aviso {
+  background: #fffbeb;
+  border: 1px solid var(--naranja);
+  color: #92400e;
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  margin-bottom: 1.1rem;
+}
+
+.login-form {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 1rem;
+}
+
+.login-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.login-campo label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--gris);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.login-error {
+  background: #fee2e2;
+  border-radius: 10px;
+  color: var(--rojo);
+  font-size: 0.88rem;
+  font-weight: 500;
+  padding: 10px 12px;
+  margin-top: -0.25rem;
+}
+
+.login-pie {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--borde);
+  color: var(--gris);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.login-version {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
 }
 
 .campo-clave {

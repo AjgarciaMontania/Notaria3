@@ -1,13 +1,20 @@
 import { useState } from 'react';
-import { NOMBRE_NOTARIA } from '../config.js';
+import { NOMBRE_NOTARIA, VERSION_APP, MINUTOS_INACTIVIDAD } from '../config.js';
 import { iniciarSesion, traducirError } from '../lib/sesion.js';
+import escudo from '../assets/escudo.png';
 
-export default function Login() {
+export default function Login({ cerradaPorInactividad = false, alEscribir }) {
   const [correo, setCorreo] = useState('');
   const [clave, setClave] = useState('');
   const [verClave, setVerClave] = useState(false);
   const [error, setError] = useState('');
   const [entrando, setEntrando] = useState(false);
+
+  const escribiendo = (poner) => (e) => {
+    poner(e.target.value);
+    setError('');
+    alEscribir?.();
+  };
 
   const intentar = async (e) => {
     e.preventDefault();
@@ -31,51 +38,59 @@ export default function Login() {
   return (
     <div className="login">
       <div className="login-caja">
-        <div className="login-escudo">⚖️</div>
-        <h1>Evidencias</h1>
-        <p className="login-notaria">{NOMBRE_NOTARIA}</p>
+        <div className="login-marca">
+          <img src={escudo} alt="" className="login-escudo" />
+          <h1>Notaría Única</h1>
+          <p className="login-notaria">{NOMBRE_NOTARIA.replace('Notaría Única de ', '')}</p>
+          <span className="login-modulo">Evidencias y liquidación</span>
+        </div>
 
-        <form onSubmit={intentar}>
-          <label htmlFor="correo">Correo</label>
-          <input
-            id="correo"
-            type="email"
-            inputMode="email"
-            autoCapitalize="none"
-            autoCorrect="off"
-            autoComplete="username"
-            value={correo}
-            onChange={(e) => {
-              setCorreo(e.target.value);
-              setError('');
-            }}
-            placeholder="nombre@notaria.gov.co"
-          />
+        {cerradaPorInactividad && (
+          <div className="login-aviso">
+            🔒 Se cerró la sesión por seguridad, después de {MINUTOS_INACTIVIDAD} minutos
+            sin actividad. Vuelve a entrar.
+          </div>
+        )}
 
-          <label htmlFor="clave">Contraseña</label>
-          <div className="campo-clave">
+        <form onSubmit={intentar} className="login-form">
+          <div className="login-campo">
+            <label htmlFor="correo">Correo</label>
             <input
-              id="clave"
-              type={verClave ? 'text' : 'password'}
-              autoComplete="current-password"
-              value={clave}
-              onChange={(e) => {
-                setClave(e.target.value);
-                setError('');
-              }}
-              placeholder="Tu contraseña"
+              id="correo"
+              type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="username"
+              value={correo}
+              onChange={escribiendo(setCorreo)}
+              placeholder="nombre@notaria.gov.co"
             />
-            <button
-              type="button"
-              className="ojo"
-              onClick={() => setVerClave((v) => !v)}
-              aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-            >
-              {verClave ? '🙈' : '👁️'}
-            </button>
           </div>
 
-          {error && <p className="error">{error}</p>}
+          <div className="login-campo">
+            <label htmlFor="clave">Contraseña</label>
+            <div className="campo-clave">
+              <input
+                id="clave"
+                type={verClave ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={clave}
+                onChange={escribiendo(setClave)}
+                placeholder="Tu contraseña"
+              />
+              <button
+                type="button"
+                className="ojo"
+                onClick={() => setVerClave((v) => !v)}
+                aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {verClave ? '🙈' : '👁️'}
+              </button>
+            </div>
+          </div>
+
+          {error && <p className="login-error">⚠ {error}</p>}
 
           <button type="submit" className="boton principal ancho" disabled={entrando}>
             {entrando ? 'Entrando…' : 'Entrar'}
@@ -83,10 +98,12 @@ export default function Login() {
         </form>
 
         <p className="login-pie">
-          Usa la cuenta que te asignó la notaría. Los documentos que subas
-          aparecen de inmediato en el módulo de Evidencias de la página web.
+          Usa la cuenta que te asignó la notaría. Por seguridad, la sesión se
+          cierra sola tras {MINUTOS_INACTIVIDAD} minutos sin uso.
         </p>
       </div>
+
+      <p className="login-version">Versión {VERSION_APP}</p>
     </div>
   );
 }
