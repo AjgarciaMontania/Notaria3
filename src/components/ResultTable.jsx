@@ -237,8 +237,10 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
           background: "#fee2e2", border: "1px solid #b91c1c", borderRadius: "10px", color: "#b91c1c",
         }}>
           <strong>⚠ Faltan las tasas de usura de: {mesesSinTasa.join(", ")}.</strong>{" "}
-          Esos días no se cobraron y la mora quedó por debajo de lo real. Cárgalas
-          en el panel de tasas históricas y vuelve a calcular.
+          Esos días sí se cobraron, pero con la tasa de respaldo
+          ({(TASA_EFECTIVA * 100).toFixed(2)}%), que puede no ser la que rigió en
+          esos meses. Cárgalas en el panel de tasas y vuelve a calcular para que
+          el valor sea exacto.
         </div>
       )}
 

@@ -221,9 +221,10 @@ export default function Liquidacion({ onSalir }) {
 
         {mesesSinTasa.length > 0 && (
           <div className="aviso error">
-            ⚠ Faltan las tasas de usura de {mesesSinTasa.join(", ")}. Esos días no
-            se cobraron: la mora quedó por debajo de lo real. Pídele al
-            administrador que las cargue en la página.
+            ⚠ Faltan las tasas de usura de {mesesSinTasa.join(", ")}. Esos días sí
+            se cobraron, pero con la tasa de respaldo
+            {tasaAnual != null && ` (${(tasaAnual * 100).toFixed(2)}%)`}, que puede
+            no ser la real. Pídele al administrador que las cargue en la página.
           </div>
         )}
 
