@@ -6,14 +6,15 @@ import {
 } from 'firebase/auth';
 import { auth } from '../firebase';
 import { marcarActividad, olvidarActividad } from './inactividad.js';
+import { aCorreo } from '@calculo/roles.js';
 
 // Firebase devuelve códigos en inglés; aquí se traducen.
 const MENSAJES = {
-  'auth/invalid-email': 'El correo no tiene un formato válido.',
+  'auth/invalid-email': 'El usuario o el correo no tienen un formato válido.',
   'auth/user-disabled': 'Esta cuenta está deshabilitada. Avisa al administrador.',
-  'auth/user-not-found': 'No existe una cuenta con ese correo.',
+  'auth/user-not-found': 'No existe una cuenta con ese usuario.',
   'auth/wrong-password': 'Contraseña incorrecta.',
-  'auth/invalid-credential': 'Correo o contraseña incorrectos.',
+  'auth/invalid-credential': 'Usuario o contraseña incorrectos.',
   'auth/missing-password': 'Escribe la contraseña.',
   'auth/too-many-requests':
     'Demasiados intentos fallidos. Espera unos minutos antes de reintentar.',
@@ -35,7 +36,9 @@ export async function iniciarSesion(correo, clave) {
   // En el celular la sesión se recuerda entre aperturas de la app: sería
   // insufrible escribir correo y contraseña cada vez. Lo que la limita es el
   // cierre por inactividad, que ahora sí funciona con la app cerrada.
-  await signInWithEmailAndPassword(auth, correo.trim(), clave);
+  // Acepta un nombre de usuario ("AlvaroArias") o un correo real: aCorreo()
+  // le agrega el dominio interno solo cuando hace falta.
+  await signInWithEmailAndPassword(auth, aCorreo(correo), clave);
   // El reloj de inactividad arranca aquí. Sin esta marca, la sesión recién
   // abierta se consideraría vencida de inmediato.
   marcarActividad();

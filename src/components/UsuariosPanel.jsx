@@ -11,6 +11,9 @@ import {
   ETIQUETAS_ROL,
   CORREO_ADMIN_RAIZ,
   ROL_POR_DEFECTO,
+  DOMINIO_INTERNO,
+  aNombreVisible,
+  aCorreo,
 } from "../utils/roles.js";
 
 const CAJA = {
@@ -49,7 +52,7 @@ export default function UsuariosPanel({ correoActual }) {
     setGuardando(true);
     try {
       await guardar({ correo, rol, nombre }, correoActual);
-      mostrar("ok", `Rol asignado a ${correo.trim().toLowerCase()}.`);
+      mostrar("ok", `Rol asignado a ${aNombreVisible(aCorreo(correo))}.`);
       setCorreo("");
       setNombre("");
       setRol(ROLES.PERSONAL);
@@ -72,7 +75,7 @@ export default function UsuariosPanel({ correoActual }) {
     const etiqueta = ETIQUETAS_ROL[ROL_POR_DEFECTO].nombre;
     if (
       !window.confirm(
-        `¿Quitar la ficha de ${ficha.correo}?\n\n` +
+        `¿Quitar la ficha de ${aNombreVisible(ficha.correo)}?\n\n` +
           `La cuenta seguirá existiendo y podrá iniciar sesión, pero volverá ` +
           `al nivel por defecto: ${etiqueta}.`
       )
@@ -80,7 +83,7 @@ export default function UsuariosPanel({ correoActual }) {
       return;
     try {
       await eliminar(ficha.correo);
-      mostrar("ok", `Ficha de ${ficha.correo} eliminada.`);
+      mostrar("ok", `Ficha de ${aNombreVisible(ficha.correo)} eliminada.`);
     } catch (fallo) {
       mostrar("error", fallo.message || "No se pudo eliminar.");
     }
@@ -91,10 +94,19 @@ export default function UsuariosPanel({ correoActual }) {
       <h3 style={{ color: "#166534", marginTop: 0 }}>👥 Usuarios y permisos</h3>
 
       <p style={{ color: "#4b5563", fontSize: "0.9rem", lineHeight: 1.5 }}>
-        Aquí se reparten los niveles de acceso. La cuenta de correo y contraseña
-        se crea aparte, en la consola de Firebase → Authentication → Users; una
-        vez creada, asígnale aquí su nivel. Una cuenta sin ficha entra como{" "}
+        Aquí se reparten los niveles de acceso. La cuenta se crea aparte, en la
+        consola de Firebase → Authentication → Users; una vez creada, asígnale
+        aquí su nivel. Una cuenta sin ficha entra como{" "}
         <strong>{ETIQUETAS_ROL[ROL_POR_DEFECTO].nombre}</strong>.
+      </p>
+
+      <p style={{ color: "#4b5563", fontSize: "0.88rem", lineHeight: 1.5, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "8px", padding: "10px 12px" }}>
+        💡 Puedes usar <strong>nombres de usuario</strong> en vez de correos. Si
+        escribes <strong>AlvaroArias</strong>, en Firebase debes crear la cuenta
+        como <strong>alvaroarias@{DOMINIO_INTERNO}</strong>; la persona solo
+        escribe <em>AlvaroArias</em> y su contraseña, porque el dominio lo agrega
+        la aplicación. Ten presente que esas cuentas no pueden recuperar la
+        contraseña por correo: se la cambias tú desde la consola.
       </p>
 
       {aviso && (
@@ -126,17 +138,24 @@ export default function UsuariosPanel({ correoActual }) {
       >
         <div>
           <label htmlFor="u-correo" style={{ display: "block", fontWeight: "bold", marginBottom: "0.35rem", fontSize: "0.9rem" }}>
-            Correo de la cuenta
+            Usuario o correo
           </label>
           <input
             id="u-correo"
-            type="email"
+            type="text"
+            autoCapitalize="none"
+            autoCorrect="off"
             value={correo}
             onChange={(e) => setCorreo(e.target.value)}
-            placeholder="nombre@notaria.com"
+            placeholder="AlvaroArias"
             style={INPUT}
             required
           />
+          {correo.trim() && !correo.includes("@") && (
+            <small style={{ fontSize: "0.75rem", color: "#6b7280" }}>
+              se guardará como <strong>{aCorreo(correo)}</strong>
+            </small>
+          )}
         </div>
 
         <div>
@@ -224,7 +243,7 @@ export default function UsuariosPanel({ correoActual }) {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.92rem" }}>
             <thead>
               <tr style={{ background: "#166534", color: "white" }}>
-                <th style={{ padding: "10px", textAlign: "left" }}>CORREO</th>
+                <th style={{ padding: "10px", textAlign: "left" }}>USUARIO</th>
                 <th style={{ padding: "10px", textAlign: "left" }}>NOMBRE</th>
                 <th style={{ padding: "10px", textAlign: "left", minWidth: "200px" }}>NIVEL</th>
                 <th style={{ padding: "10px" }}></th>
@@ -234,7 +253,7 @@ export default function UsuariosPanel({ correoActual }) {
               {usuarios.map((u) => (
                 <tr key={u.correo} style={{ borderBottom: "1px solid #e5e7eb" }}>
                   <td style={{ padding: "10px", wordBreak: "break-all" }}>
-                    {u.correo}
+                    {aNombreVisible(u.correo)}
                     {u.correo === correoActual && (
                       <span style={{ color: "#166534", fontWeight: "bold" }}> (tú)</span>
                     )}

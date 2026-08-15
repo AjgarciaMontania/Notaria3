@@ -267,15 +267,17 @@ function App() {
           )}
 
           <label htmlFor="correo" style={{ display: "block", fontWeight: "bold", marginBottom: "0.5rem", color: "#374151" }}>
-            Correo:
+            Usuario o correo:
           </label>
           <input
             id="correo"
-            type="email"
+            type="text"
+            autoCapitalize="none"
+            autoCorrect="off"
             autoComplete="username"
             value={correo}
             onChange={(e) => { setCorreo(e.target.value); setErrorAuth(""); setSessionExpired(false); }}
-            placeholder="nombre@notaria.gov.co"
+            placeholder="Tu usuario, o tu correo"
             style={{ width: "100%", padding: "12px", fontSize: "1rem", border: "1px solid #d1d5db", borderRadius: "8px", marginBottom: "1rem", boxSizing: "border-box" }}
             autoFocus
           />
@@ -302,7 +304,8 @@ function App() {
           </button>
 
           <p style={{ textAlign: "center", marginTop: "1rem", color: "#6b7280", fontSize: "0.85rem" }}>
-            Cada persona usa su propia cuenta. La sesión se cierra sola tras
+            Cada persona usa su propia cuenta: puede ser un nombre de usuario
+            (por ejemplo AlvaroArias) o un correo. La sesión se cierra sola tras
             5 minutos de inactividad y al cerrar el navegador.
           </p>
         </form>

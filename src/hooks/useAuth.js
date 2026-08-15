@@ -8,6 +8,7 @@ import {
   browserSessionPersistence,
 } from "firebase/auth";
 import { auth } from "../firebase";
+import { aCorreo } from "../utils/roles.js";
 
 // Firebase devuelve códigos en inglés; aquí se traducen a algo entendible.
 const MENSAJES = {
@@ -46,7 +47,9 @@ export function useAuth() {
       // Persistencia de pestaña: al cerrar el navegador la sesión se cierra.
       // En un computador compartido de la notaría es lo prudente.
       await setPersistence(auth, browserSessionPersistence);
-      await signInWithEmailAndPassword(auth, correo.trim(), clave);
+      // Acepta tanto un correo real como un nombre de usuario: aCorreo() le
+      // agrega el dominio interno cuando hace falta.
+      await signInWithEmailAndPassword(auth, aCorreo(correo), clave);
       return true;
     } catch (fallo) {
       setError(MENSAJES[fallo.code] || "No se pudo iniciar sesión. Intenta de nuevo.");

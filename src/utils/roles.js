@@ -91,3 +91,62 @@ export function puedeOperar(rol) {
 export function soloPuedeLiquidar(rol) {
   return rol === ROLES.LIQUIDADOR;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INGRESO CON NOMBRE DE USUARIO
+//
+// Firebase Authentication con correo y contraseña exige un texto con FORMA de
+// correo: no acepta "AlvaroArias" a secas. Pero sí acepta cualquier correo bien
+// formado aunque el dominio no exista, porque nunca envía ningún mensaje.
+//
+// Así que quien entra escribe solo su nombre de usuario y la app le agrega este
+// dominio por dentro. Nadie ve el dominio en pantalla.
+//
+// Las cuentas con correo real siguen funcionando: si lo escrito trae "@", se
+// respeta tal cual.
+//
+// ⚠️ Consecuencia a tener presente: estos usuarios NO pueden restablecer su
+// contraseña por correo, porque no hay buzón al que escribir. El administrador
+// se las cambia desde console.firebase.google.com → Authentication → Users.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const DOMINIO_INTERNO = 'cartagena.com';
+
+/**
+ * Convierte lo que la persona escribió en el correo que entiende Firebase.
+ *
+ *   "AlvaroArias"        → "alvaroarias@cartagena.com"
+ *   "alvaro arias"       → "alvaroarias@cartagena.com"
+ *   "cha1@outlook.es"    → "cha1@outlook.es"   (se respeta el correo real)
+ */
+export function aCorreo(entrada) {
+  const texto = String(entrada ?? '').trim();
+  if (!texto) return '';
+  if (texto.includes('@')) return texto.toLowerCase();
+
+  // Se dejan solo caracteres válidos para la parte antes del arroba.
+  const limpio = texto
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // quita tildes: Álvaro → Alvaro
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '');
+
+  return limpio ? `${limpio}@${DOMINIO_INTERNO}` : '';
+}
+
+/**
+ * Lo contrario, para mostrar en pantalla:
+ *   "alvaroarias@cartagena.com" → "alvaroarias"
+ *   "cha1@outlook.es"           → "cha1@outlook.es"
+ */
+export function aNombreVisible(correo) {
+  const c = normalizarCorreo(correo);
+  if (!c) return '';
+  const sufijo = `@${DOMINIO_INTERNO}`;
+  return c.endsWith(sufijo) ? c.slice(0, -sufijo.length) : c;
+}
+
+/** ¿Es una cuenta de usuario interno (sin correo real)? */
+export function esUsuarioInterno(correo) {
+  return normalizarCorreo(correo).endsWith(`@${DOMINIO_INTERNO}`);
+}

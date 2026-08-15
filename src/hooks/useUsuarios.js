@@ -11,7 +11,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import { normalizarCorreo, esAdminRaiz, ROLES } from "../utils/roles.js";
+import { normalizarCorreo, esAdminRaiz, aCorreo, ROLES } from "../utils/roles.js";
 
 export function useUsuarios(activo) {
   const [usuarios, setUsuarios] = useState([]);
@@ -47,9 +47,11 @@ export function useUsuarios(activo) {
 
   /** Crea o actualiza la ficha de un correo. */
   const guardar = useCallback(async ({ correo, rol, nombre }, quienLoHace) => {
-    const id = normalizarCorreo(correo);
-    if (!id) throw new Error("Escribe el correo.");
-    if (!id.includes("@")) throw new Error("Ese correo no parece válido.");
+    // Acepta un nombre de usuario o un correo real: la ficha se guarda con el
+    // mismo identificador que Firebase usará al iniciar sesión.
+    const id = aCorreo(correo);
+    if (!id) throw new Error("Escribe el usuario o el correo.");
+    if (!id.includes("@")) throw new Error("Ese usuario no parece válido.");
     if (!Object.values(ROLES).includes(rol)) throw new Error("Rol no válido.");
     if (esAdminRaiz(id)) {
       throw new Error(
@@ -70,7 +72,7 @@ export function useUsuarios(activo) {
 
   /** Borra la ficha: la cuenta vuelve al rol por defecto (invitado). */
   const eliminar = useCallback(async (correo) => {
-    const id = normalizarCorreo(correo);
+    const id = aCorreo(correo);
     if (esAdminRaiz(id)) {
       throw new Error("El administrador principal no se puede quitar.");
     }

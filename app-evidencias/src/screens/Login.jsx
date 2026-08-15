@@ -19,7 +19,7 @@ export default function Login({ cerradaPorInactividad = false, alEscribir }) {
   const intentar = async (e) => {
     e.preventDefault();
     if (!correo.trim() || !clave) {
-      setError('Escribe tu correo y tu contraseña.');
+      setError('Escribe tu usuario y tu contraseña.');
       return;
     }
     setEntrando(true);
@@ -54,17 +54,16 @@ export default function Login({ cerradaPorInactividad = false, alEscribir }) {
 
         <form onSubmit={intentar} className="login-form">
           <div className="login-campo">
-            <label htmlFor="correo">Correo</label>
+            <label htmlFor="correo">Usuario o correo</label>
             <input
               id="correo"
-              type="email"
-              inputMode="email"
+              type="text"
               autoCapitalize="none"
               autoCorrect="off"
               autoComplete="username"
               value={correo}
               onChange={escribiendo(setCorreo)}
-              placeholder="nombre@notaria.gov.co"
+              placeholder="Tu usuario, o tu correo"
             />
           </div>
 
