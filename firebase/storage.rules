@@ -72,6 +72,18 @@ service firebase.storage {
       allow delete: if puedeOperar();
     }
 
+    // Recibos de pago de impuestos: uno por escritura. Es la etapa anterior al
+    // envío, cuando el documento ya está radicado en la ORIP.
+    match /recibos-registro/{archivo} {
+
+      allow read: if puedeOperar();
+
+      allow create, update: if puedeOperar()
+                            && request.resource.size < 50 * 1024 * 1024;
+
+      allow delete: if puedeOperar();
+    }
+
     // Cualquier otra ruta del bucket, cerrada.
     match /{ruta=**} {
       allow read, write: if false;

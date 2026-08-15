@@ -7,6 +7,10 @@ import {
   subirSoporteYMarcarEnviadas,
   revertirEnvio,
   formatoFechaEnvio,
+  subirReciboRegistro,
+  quitarReciboRegistro,
+  diasHabilesDesde,
+  DIAS_HABILES_REGISTRO,
 } from "../utils/soportesEscrituras";
 
 // Función auxiliar para convertir fecha de Excel a string "YYYY-MM-DD"
@@ -83,6 +87,42 @@ export default function EscriturasPendientes({ isAdmin }) {
       mostrarAviso("error", `No se pudo adjuntar el soporte: ${error.message}`, 9000);
     } finally {
       setSubiendo(false);
+    }
+  };
+
+  // ── Pagada y en registro ──────────────────────────────────────────────────
+  // Etapa anterior al envío: se pagaron los impuestos y la escritura quedó
+  // radicada en la ORIP. A diferencia del soporte de envío, el recibo es de
+  // UNA sola escritura, así que se adjunta fila por fila.
+  const [subiendoRecibo, setSubiendoRecibo] = useState(null); // id de la fila
+
+  const adjuntarRecibo = (registro) => async (e) => {
+    const archivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!archivo) return;
+
+    setSubiendoRecibo(registro.id);
+    try {
+      await subirReciboRegistro(archivo, registro);
+      mostrarAviso("ok", `Escritura ${registro.numeroEscritura} marcada como pagada y en registro.`);
+    } catch (error) {
+      console.error(error);
+      mostrarAviso("error", `No se pudo adjuntar el recibo: ${error.message}`, 9000);
+    } finally {
+      setSubiendoRecibo(null);
+    }
+  };
+
+  const devolverDeRegistro = async (registro) => {
+    const texto =
+      `¿Quitar el estado "en registro" de la escritura ${registro.numeroEscritura}?\n\n` +
+      `Se eliminará el recibo "${registro.reciboNombre || ""}" y la fila volverá a pendiente.`;
+    if (!window.confirm(texto)) return;
+    try {
+      await quitarReciboRegistro(registro);
+      mostrarAviso("ok", "Escritura devuelta a pendiente.");
+    } catch (error) {
+      mostrarAviso("error", `No se pudo quitar: ${error.message}`, 9000);
     }
   };
 
@@ -185,6 +225,11 @@ export default function EscriturasPendientes({ isAdmin }) {
       MATRICULA: r.matricula,
       "NOTA DEVOLUTIVA": r.notaDevolutiva,
       MOTIVO: r.motivo || "",
+      "EN REGISTRO": r.enRegistro ? "SÍ" : "NO",
+      "FECHA DE PAGO": formatoFechaEnvio(r.fechaRegistro),
+      "DÍAS EN REGISTRO": r.enRegistro ? diasHabilesDesde(r.fechaRegistro) : "",
+      RECIBO: r.reciboNombre || "",
+      "ENLACE DEL RECIBO": r.reciboURL || "",
       ENVIADO: r.enviado ? "SÍ" : "NO",
       "FECHA DE ENVÍO": formatoFechaEnvio(r.fechaEnvio),
       "ENVIADO POR": r.enviadoPor || "",
@@ -351,6 +396,7 @@ export default function EscriturasPendientes({ isAdmin }) {
             <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>MATRÍCULA</th>
             <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>NOTA DEVOLUTIVA</th>
             <th className="celda-texto" style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>MOTIVO</th>
+            <th style={{ padding: "12px 10px", textAlign: "center", fontSize: "0.85rem" }} title="Impuestos pagados y escritura radicada en la ORIP">REGISTRO</th>
             <th style={{ padding: "12px 10px", textAlign: "center", fontSize: "0.85rem" }}>
               ENVÍO
               {pendientes.length > 0 && (
@@ -375,7 +421,9 @@ export default function EscriturasPendientes({ isAdmin }) {
           {escrituras.map((r) => (
             <tr
               key={r.id}
-              className={r.enviado ? "fila-enviada" : undefined}
+              // El verde (enviada) manda sobre el amarillo (en registro):
+              // es el estado más avanzado del recorrido.
+              className={r.enviado ? "fila-enviada" : r.enRegistro ? "fila-en-registro" : undefined}
               style={{ borderBottom: "1px solid #e5e7eb" }}
             >
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.item}</td>
@@ -385,6 +433,68 @@ export default function EscriturasPendientes({ isAdmin }) {
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.matricula}</td>
               <td style={{ padding: "12px 10px", color: r.notaDevolutiva === "SI" ? "#b91c1c" : "#166534", fontWeight: "bold", whiteSpace: "nowrap" }}>{r.notaDevolutiva}</td>
               <td className="celda-texto" style={{ padding: "12px 10px", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4" }}>{r.motivo || ""}</td>
+              <td style={{ padding: "12px 10px", textAlign: "center", whiteSpace: "nowrap" }}>
+                {r.enRegistro ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px" }}>
+                    <strong style={{ color: "#854d0e", fontSize: "0.8rem" }}>🧾 Pagada</strong>
+                    <small style={{ color: "#854d0e", fontSize: "0.71rem" }}>
+                      {formatoFechaEnvio(r.fechaRegistro)}
+                    </small>
+                    {/* El contador solo tiene sentido mientras la escritura
+                        siga en registro. Si ya se envió, salió de la ORIP y
+                        avisar de una demora sería engañoso. */}
+                    {!r.enviado && (() => {
+                      const dias = diasHabilesDesde(r.fechaRegistro);
+                      const pasada = dias > DIAS_HABILES_REGISTRO;
+                      return (
+                        <small
+                          title={`La ORIP suele demorarse unos ${DIAS_HABILES_REGISTRO} días hábiles. No se descuentan festivos.`}
+                          style={{ fontSize: "0.71rem", fontWeight: pasada ? 700 : 400, color: pasada ? "#b91c1c" : "#a16207" }}
+                        >
+                          {pasada ? `⚠ ${dias} días hábiles` : `${dias} de ${DIAS_HABILES_REGISTRO} días`}
+                        </small>
+                      );
+                    })()}
+                    {r.reciboURL && (
+                      <a
+                        href={r.reciboURL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`Abrir ${r.reciboNombre || "el recibo"} en una pestaña nueva`}
+                        style={{ color: "#854d0e", fontSize: "0.77rem", fontWeight: 600 }}
+                      >
+                        📎 Ver recibo
+                      </a>
+                    )}
+                    {isAdmin && (
+                      <button
+                        onClick={() => devolverDeRegistro(r)}
+                        title="Quitar el recibo y devolver la escritura a pendiente"
+                        style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: "0.71rem", textDecoration: "underline", padding: 0 }}
+                      >
+                        Quitar
+                      </button>
+                    )}
+                  </div>
+                ) : isAdmin ? (
+                  <label
+                    title="Adjunta el recibo de pago de impuestos de esta escritura"
+                    style={{ display: "inline-flex", alignItems: "center", gap: "5px", cursor: subiendoRecibo ? "wait" : "pointer", fontSize: "0.77rem", color: "#a16207", fontWeight: 600, margin: 0 }}
+                  >
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={adjuntarRecibo(r)}
+                      disabled={Boolean(subiendoRecibo)}
+                      style={{ display: "none" }}
+                    />
+                    {subiendoRecibo === r.id ? "Subiendo…" : "🧾 Adjuntar recibo"}
+                  </label>
+                ) : (
+                  <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}>—</span>
+                )}
+              </td>
+
               <td style={{ padding: "12px 10px", textAlign: "center", whiteSpace: "nowrap" }}>
                 {r.enviado ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>

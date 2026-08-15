@@ -353,20 +353,26 @@ tbody tr.summary-row:first-of-type td {
   text-transform: uppercase;
 }
 
-/* Los 9 anchos suman ~1195px y caben dentro de la tarjeta de 1380px */
+/* Ahora son 10 columnas: entró REGISTRO entre MOTIVO y ENVÍO. Los anchos se
+   ajustaron para que la tabla siga cabiendo en la tarjeta sin desplazamiento
+   lateral en un portátil. */
 .tabla-escrituras {
-  min-width: 1195px;
+  min-width: 0;
 }
 
-.tabla-escrituras th:nth-child(1) { min-width: 60px;  text-align: center; }
-.tabla-escrituras th:nth-child(2) { min-width: 210px; white-space: normal; }
-.tabla-escrituras th:nth-child(3) { min-width: 120px; }
-.tabla-escrituras th:nth-child(4) { min-width: 125px; }
-.tabla-escrituras th:nth-child(5) { min-width: 125px; }
-.tabla-escrituras th:nth-child(6) { min-width: 125px; text-align: center; white-space: normal; }
-.tabla-escrituras th:nth-child(7) { min-width: 190px; white-space: normal; }
-.tabla-escrituras th:nth-child(8) { min-width: 120px; text-align: center; }
-.tabla-escrituras th:nth-child(9) { min-width: 120px; text-align: center; }
+.tabla-escrituras th:nth-child(1)  { min-width: 48px;  text-align: center; }
+.tabla-escrituras th:nth-child(2)  { min-width: 152px; white-space: normal; }
+.tabla-escrituras th:nth-child(3)  { min-width: 92px;  }
+.tabla-escrituras th:nth-child(4)  { min-width: 104px; }
+.tabla-escrituras th:nth-child(5)  { min-width: 112px; }
+.tabla-escrituras th:nth-child(6)  { min-width: 92px;  text-align: center; white-space: normal; }
+.tabla-escrituras th:nth-child(7)  { min-width: 144px; white-space: normal; }
+.tabla-escrituras th:nth-child(8)  { min-width: 118px; text-align: center; white-space: normal; }
+.tabla-escrituras th:nth-child(9)  { min-width: 112px; text-align: center; }
+.tabla-escrituras th:nth-child(10) { min-width: 104px; text-align: center; }
+
+/* Las celdas de REGISTRO y ENVÍO llevan varias líneas: que respiren menos */
+.tabla-escrituras td { font-size: 0.86rem; }
 
 /* Editar y Eliminar apilados: en horizontal ya no caben junto a la columna ENVÍO */
 .acciones-escritura {
@@ -1373,4 +1379,22 @@ tbody tr.summary-row:first-of-type td {
   font-size: 11px;
   color: #6b7280;
   line-height: 1.5;
+}
+
+/* ── Escritura pagada y en registro ──────────────────────────────────────────
+   Etapa anterior al envío: se pagaron los impuestos y la ORIP la tiene
+   radicada, unos 15 días hábiles. Amarillo sobrio, no de resaltador: el
+   mismo tono que usan los avisos del sistema. */
+.fila-en-registro td {
+  background-color: #fef9e7 !important;
+}
+
+.fila-en-registro:hover td {
+  background-color: #fdf3d0 !important;
+}
+
+/* Una franja a la izquierda para distinguirla de un vistazo al recorrer la
+   tabla, sin necesidad de leer la columna. */
+.fila-en-registro td:first-child {
+  box-shadow: inset 4px 0 0 #d4a017;
 }
