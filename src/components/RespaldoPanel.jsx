@@ -123,6 +123,14 @@ export default function RespaldoPanel({ correoActual }) {
         varios megas y no cabe en un respaldo de texto. Si alguien borra un
         archivo de Storage, el enlace del respaldo dejará de funcionar. El
         respaldo protege la información, no los escaneos.
+        <br /><br />
+        <strong>Los escaneos se respaldan aparte</strong>, desde el computador
+        donde está el proyecto, con el comando{" "}
+        <code style={{ background: "#fef3c7", padding: "1px 5px", borderRadius: "4px" }}>
+          npm run respaldo:archivos
+        </code>
+        . Baja los PDF y las fotos a una carpeta o a una USB, y solo trae lo
+        nuevo cada vez. Las instrucciones están en RESPALDO-ARCHIVOS.md.
       </div>
 
       <p style={{ marginTop: "1rem", fontSize: "0.84rem", color: "#475569", lineHeight: 1.55 }}>

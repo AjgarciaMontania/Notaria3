@@ -11,7 +11,8 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "preview": "vite preview",
-    "test": "node --test \"pruebas/*.test.mjs\""
+    "test": "node --test \"pruebas/*.test.mjs\"",
+    "respaldo:archivos": "node herramientas/respaldo-archivos.mjs"
   },
   "dependencies": {
     "firebase": "^12.9.0",

@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Respaldos de los escaneos. NUNCA deben subirse a GitHub.
+respaldo-archivos/
+*.respaldo/
