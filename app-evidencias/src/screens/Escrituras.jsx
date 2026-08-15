@@ -40,6 +40,8 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
   const [formulario, setFormulario] = useState(null); // datos de la escritura nueva
   const [guardando, setGuardando] = useState(false);
   const inputArchivo = useRef(null);
+  // A qué escritura pertenece el archivo que se está eligiendo (si es un recibo)
+  const reciboPara = useRef(null);
   const enCurso = useRef(false);
 
   const mostrar = (tipo, texto, ms = 5000) => {
@@ -117,7 +119,22 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
   const alElegirPdf = async (e) => {
     const archivo = e.target.files?.[0];
     e.target.value = '';
-    if (archivo) await enviarConSoporte(archivo, archivo.name);
+    if (!archivo) return;
+    // El mismo selector sirve para el soporte del lote y para el recibo de una
+    // escritura: lo que decide es a quién se le pidió.
+    if (reciboPara.current) {
+      const destino = reciboPara.current;
+      reciboPara.current = null;
+      await subirRecibo(archivo, archivo.name, destino);
+    } else {
+      await enviarConSoporte(archivo, archivo.name);
+    }
+  };
+
+  /** Abre el selector de archivos para el recibo de una escritura concreta. */
+  const elegirArchivoRecibo = (escritura) => {
+    reciboPara.current = escritura;
+    inputArchivo.current?.click();
   };
 
   // ── Escáner ───────────────────────────────────────────────────────────────
@@ -251,7 +268,10 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
                   <button
                     className="pagina-quitar"
                     onClick={() =>
-                      setEscaneo((e) => ({ paginas: e.paginas.filter((_, x) => x !== i) }))
+                      // Se conserva el resto del estado: si esto es el recibo
+                      // de una escritura, quitar una página no puede borrar a
+                      // cuál pertenece.
+                      setEscaneo((e) => ({ ...e, paginas: e.paginas.filter((_, x) => x !== i) }))
                     }
                     aria-label={`Quitar página ${i + 1}`}
                   >
@@ -449,9 +469,17 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
                     </div>
                   ) : (
                     !e.enviado && (
-                      <button className="registrar-escritura" onClick={() => iniciarEscaneo(e)}>
-                        🧾 Adjuntar recibo de pago
-                      </button>
+                      <div className="registrar-opciones">
+                        <span>🧾 Recibo de pago</span>
+                        <div className="fila-botones">
+                          <button className="boton gris" onClick={() => iniciarEscaneo(e)}>
+                            📷 Foto
+                          </button>
+                          <button className="boton gris" onClick={() => elegirArchivoRecibo(e)}>
+                            📄 Archivo
+                          </button>
+                        </div>
+                      </div>
                     )
                   )}
 

@@ -94,12 +94,20 @@ export async function subirSoporteYMarcarEnviadas(archivo, nombreArchivo, escrit
   const marca = new Date().toISOString().replace(/[:.]/g, '-');
   const ruta = `${CARPETA_SOPORTES}/${marca}_${nombreSeguro(nombreArchivo)}`;
 
+  if (!(archivo instanceof Blob)) {
+    throw new Error('El documento no se generó bien. Intenta de nuevo.');
+  }
+
   const referencia = ref(storage, ruta);
-  await uploadBytes(referencia, archivo, {
-    contentType: tipo,
-    // "inline" hace que al abrirlo se vea en el navegador en vez de descargarse
-    contentDisposition: 'inline',
-  });
+  try {
+    await uploadBytes(referencia, archivo, {
+      contentType: tipo,
+      // "inline" hace que al abrirlo se vea en el navegador en vez de descargarse
+      contentDisposition: 'inline',
+    });
+  } catch (fallo) {
+    throw new Error(traducirErrorArchivo(fallo, CARPETA_SOPORTES));
+  }
   const soporteURL = await getDownloadURL(referencia);
 
   const envio = {
@@ -170,6 +178,26 @@ export function formatoFechaEnvio(iso) {
 
 const CARPETA_RECIBOS = 'recibos-registro';
 
+/**
+ * Traduce los errores de Firebase Storage a algo que se entienda.
+ *
+ * El mensaje original viene en inglés y no dice qué hacer. El caso más común
+ * al estrenar una carpeta nueva es que falten las reglas: eso no se arregla
+ * desde el celular, hay que publicarlas en la consola de Firebase.
+ */
+export function traducirErrorArchivo(fallo, carpeta = '') {
+  const codigo = fallo?.code || '';
+  if (codigo === 'storage/unauthorized') {
+    return `El servidor no permite guardar en "${carpeta}". Hay que publicar las reglas de Storage con esa carpeta desde la consola de Firebase.`;
+  }
+  if (codigo === 'storage/unauthenticated') return 'La sesión se venció. Vuelve a entrar e intenta de nuevo.';
+  if (codigo === 'storage/retry-limit-exceeded') return 'La subida tardó demasiado. Revisa la conexión e intenta otra vez.';
+  if (codigo === 'storage/canceled') return 'La subida se canceló.';
+  if (codigo === 'storage/quota-exceeded') return 'Se acabó el espacio de almacenamiento.';
+  if (codigo === 'storage/invalid-argument') return 'El archivo no llegó en un formato válido. Intenta tomar la foto de nuevo.';
+  return fallo?.message || 'Error desconocido';
+}
+
 /** Sube el recibo de una escritura y la marca como pagada / en registro. */
 export async function subirReciboRegistro(archivo, nombreArchivo, escritura) {
   if (!escritura?.id) throw new Error('Escritura no válida');
@@ -177,11 +205,21 @@ export async function subirReciboRegistro(archivo, nombreArchivo, escritura) {
   const marca = new Date().toISOString().replace(/[:.]/g, '-');
   const ruta = `${CARPETA_RECIBOS}/${escritura.id}-${marca}_${nombreSeguro(nombreArchivo)}`;
 
+  // Comprobación temprana: si lo que llega no es un archivo, el error de
+  // Firebase es críptico ("Expected Blob or File"). Mejor decirlo claro.
+  if (!(archivo instanceof Blob)) {
+    throw new Error('La foto no se convirtió en documento. Intenta tomarla de nuevo.');
+  }
+
   const referencia = ref(storage, ruta);
-  await uploadBytes(referencia, archivo, {
-    contentType: archivo.type || 'application/pdf',
-    contentDisposition: 'inline',
-  });
+  try {
+    await uploadBytes(referencia, archivo, {
+      contentType: archivo.type || 'application/pdf',
+      contentDisposition: 'inline',
+    });
+  } catch (fallo) {
+    throw new Error(traducirErrorArchivo(fallo, CARPETA_RECIBOS));
+  }
   const reciboURL = await getDownloadURL(referencia);
 
   await updateDoc(doc(db, 'escrituras', escritura.id), {
