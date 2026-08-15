@@ -207,12 +207,12 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
     );
     if (!ok) return;
     try {
-      const borradoSoporte = await eliminarEscritura(registro, escrituras);
+      const archivosBorrados = await eliminarEscritura(registro, escrituras);
       setSeleccion((p) => p.filter((x) => x !== registro.id));
       mostrar(
         'ok',
-        borradoSoporte
-          ? 'Escritura eliminada junto con su soporte.'
+        archivosBorrados > 0
+          ? `Escritura eliminada junto con ${archivosBorrados} archivo(s).`
           : 'Escritura eliminada.'
       );
     } catch (error) {

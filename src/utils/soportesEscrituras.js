@@ -10,6 +10,38 @@ import { db, storage, auth } from "../firebase";
 const CARPETA = "soportes-escrituras";
 
 /**
+ * Borra de Storage una lista de rutas.
+ *
+ * Devuelve cuántas se borraron y cuáles fallaron, en vez de reventar a la
+ * primera: si el registro de Firestore ya se borró, dejar el proceso a medias
+ * no arregla nada. Lo que falle se informa para poder mirarlo.
+ *
+ * Un archivo que ya no existe NO cuenta como error: el resultado buscado
+ * —que no esté— ya se cumplió.
+ *
+ * @param {string[]} rutas  rutas de Storage
+ * @returns {Promise<{borrados: number, fallidos: Array<{ruta: string, motivo: string}>}>}
+ */
+export async function borrarArchivos(rutas = []) {
+  let borrados = 0;
+  const fallidos = [];
+  for (const ruta of rutas) {
+    if (!ruta) continue;
+    try {
+      await deleteObject(ref(storage, ruta));
+      borrados++;
+    } catch (fallo) {
+      if (fallo?.code === "storage/object-not-found") {
+        borrados++;
+        continue;
+      }
+      fallidos.push({ ruta, motivo: fallo?.code || fallo?.message || "error" });
+    }
+  }
+  return { borrados, fallidos };
+}
+
+/**
  * Lee el archivo completo antes de subirlo.
  * Evita el problema de los PDF que llegan truncados cuando el navegador los
  * entrega por partes desde un proveedor externo.

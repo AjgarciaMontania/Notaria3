@@ -9,9 +9,11 @@ import {
   formatoFechaEnvio,
   subirReciboRegistro,
   quitarReciboRegistro,
+  borrarArchivos,
   diasHabilesDesde,
   DIAS_HABILES_REGISTRO,
 } from "../utils/soportesEscrituras";
+import { archivosHuerfanos } from "../utils/limpiezaArchivos";
 
 // Función auxiliar para convertir fecha de Excel a string "YYYY-MM-DD"
 const excelDateToString = (value) => {
@@ -195,10 +197,25 @@ export default function EscriturasPendientes({ isAdmin }) {
     setEditingItem(r);
   };
 
+  // Al borrar una escritura hay que llevarse también sus archivos de Storage.
+  // Firestore y Storage son dos sitios distintos: borrar el registro no borra
+  // el recibo ni el soporte, y quedaban ahí para siempre —ocupando espacio y
+  // abriéndose con su enlace de descarga—. Qué se lleva y qué no lo decide
+  // utils/limpiezaArchivos.js, que comparten la web y la APK.
   const deleteEntry = async (id) => {
+    const registro = escrituras.find((e) => e.id === id);
     if (!window.confirm("¿Estás seguro de eliminar este registro?")) return;
     try {
+      const rutas = archivosHuerfanos(registro ? [registro] : [], escrituras);
       await deleteDoc(doc(db, "escrituras", id));
+      const { fallidos } = await borrarArchivos(rutas);
+      if (fallidos.length > 0) {
+        console.warn("Archivos que no se pudieron borrar:", fallidos);
+        alert(
+          "El registro se eliminó, pero " + fallidos.length +
+          " archivo(s) quedaron en el servidor. Avísale al administrador."
+        );
+      }
     } catch (error) {
       console.error("Error al eliminar:", error);
       alert("Error al eliminar el registro");
@@ -209,7 +226,17 @@ export default function EscriturasPendientes({ isAdmin }) {
     if (!window.confirm("¿Estás seguro de borrar TODA la base de datos?")) return;
     try {
       const querySnapshot = await getDocs(collection(db, "escrituras"));
-      await Promise.all(querySnapshot.docs.map((d) => deleteDoc(doc(db, "escrituras", d.id))));
+      const todas = querySnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const rutas = archivosHuerfanos(todas, todas);
+      await Promise.all(todas.map((e) => deleteDoc(doc(db, "escrituras", e.id))));
+      const { fallidos } = await borrarArchivos(rutas);
+      if (fallidos.length > 0) {
+        console.warn("Archivos que no se pudieron borrar:", fallidos);
+        alert(
+          "La base se limpió, pero " + fallidos.length +
+          " archivo(s) quedaron en el servidor. Avísale al administrador."
+        );
+      }
     } catch (error) {
       console.error("Error al limpiar:", error);
       alert("Error al limpiar la base");

@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, auth } from '../firebase';
+import { archivosHuerfanos } from '@calculo/limpiezaArchivos.js';
 
 const CARPETA_SOPORTES = 'soportes-escrituras';
 
@@ -50,24 +51,32 @@ export async function agregarEscritura(datos) {
 }
 
 /**
- * Elimina una escritura. Si tenía soporte y ninguna otra lo usa, el archivo
- * también se borra de Storage.
+ * Elimina una escritura y se lleva los archivos que quedan huérfanos.
+ *
+ * Antes solo miraba el soporte de envío y se olvidaba del recibo de impuestos,
+ * que se quedaba en Storage para siempre. Qué se borra y qué no lo decide
+ * ahora archivosHuerfanos(), el mismo archivo que usa la página web.
+ *
+ * @returns {Promise<number>} cuántos archivos se borraron
  */
-export async function eliminarEscritura(escritura, todas) {
-  const ruta = escritura.soportePath;
+export async function eliminarEscritura(escritura, todas = []) {
+  const rutas = archivosHuerfanos([escritura], todas);
   await deleteDoc(doc(db, 'escrituras', escritura.id));
 
-  if (!ruta) return false;
-  const enUso = todas.some((e) => e.id !== escritura.id && e.soportePath === ruta);
-  if (enUso) return false;
-
-  try {
-    await deleteObject(ref(storage, ruta));
-    return true;
-  } catch (fallo) {
-    if (fallo.code !== 'storage/object-not-found') throw fallo;
-    return false;
+  let borrados = 0;
+  for (const ruta of rutas) {
+    try {
+      await deleteObject(ref(storage, ruta));
+      borrados++;
+    } catch (fallo) {
+      // Que ya no esté es justo lo que se buscaba.
+      if (fallo.code === 'storage/object-not-found') { borrados++; continue; }
+      // Si falla por otra razón se avisa, pero la escritura YA se borró: no
+      // tiene sentido dejar el proceso a medias.
+      console.warn('No se pudo borrar el archivo:', ruta, fallo.code);
+    }
   }
+  return borrados;
 }
 
 /** Quita acentos y caracteres que no valen como nombre de archivo. */
