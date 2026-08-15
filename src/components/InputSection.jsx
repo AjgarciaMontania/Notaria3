@@ -13,7 +13,7 @@ export default function InputSection({
   cancelEnaje, onCancelEnajeChange,
   dineroEnviado, onDineroChange,
   fechaPago, onFechaPagoChange,
-  onIngresar, onCalcular, onLimpiar, onExportar, calcularDisabled
+  onIngresar, onCalcular, onLimpiar, onExportar, onImagen, calcularDisabled
 }) {
   return (
     <div className="input-card">
@@ -142,6 +142,7 @@ export default function InputSection({
         <button className="calcular" onClick={() => onCalcular(dineroEnviado)} disabled={calcularDisabled}>Calcular</button>
         <button className="limpiar" onClick={onLimpiar}>Limpiar</button>
         <button className="exportar" onClick={onExportar}>Exportar Excel</button>
+        <button className="imagen" onClick={onImagen} title="Genera una imagen de la liquidación para entregarle al cliente">🖼️ Imagen</button>
       </div>
     </div>
   );

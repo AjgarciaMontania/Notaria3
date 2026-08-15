@@ -1,7 +1,9 @@
 // src/components/ResultTable.jsx
 import * as XLSX from 'xlsx';
 import { formatCOP, formatNumberWithPoints } from "../utils/formatters";
-import React, { forwardRef, useImperativeHandle, useState } from "react";
+import React, { forwardRef, useImperativeHandle, useState, useRef } from "react";
+import html2canvas from "html2canvas";
+import LaminaLiquidacion from "./LaminaLiquidacion";
 import { ACTOS_CONFIG } from "../utils/actosConfig";
 import { liquidar, DESCUENTO_MORA, MORA_ANNUAL_RATE } from "../utils/motorLiquidacion.js";
 
@@ -21,8 +23,11 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
   const TASAS_MES = tasasHistoricas ?? {};
   const [documentos, setDocumentos] = useState([]);
   const [mesesSinTasa, setMesesSinTasa] = useState([]);
+  const [totales, setTotales] = useState(null);
+  const [generando, setGenerando] = useState(false);
+  const lamina = useRef(null);
 
-  useImperativeHandle(ref, () => ({ calcularTodo, exportToExcel }));
+  useImperativeHandle(ref, () => ({ calcularTodo, exportToExcel, generarImagen }));
 
   const calcularTodo = (dineroEnviadoStr) => {
     if (calcularDisabled) return;
@@ -39,6 +44,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
 
     setDocumentos(docs);
     setMesesSinTasa(faltan);
+    setTotales(totales);
 
     setRows([
       ...calculados,
@@ -85,6 +91,34 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
     .filter(({ fila }) => fila.isSummary || fila.isAdditional || fila.isNote);
 
   // ── Excel ──────────────────────────────────────────────────────────────────
+  /**
+   * Convierte la lámina en una imagen y la descarga.
+   *
+   * La lámina vive fuera de la pantalla (ver .lam en index.css): html2canvas la
+   * fotografía igual, y así no estorba mientras se trabaja en la tabla.
+   */
+  const generarImagen = async () => {
+    if (!totales || !lamina.current || generando) return;
+    setGenerando(true);
+    try {
+      const lienzo = await html2canvas(lamina.current, {
+        scale: 2,              // el doble de resolución: se lee bien impresa
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        logging: false,
+      });
+      const enlace = document.createElement("a");
+      enlace.download = `liquidacion_${fechaPago || "notaria"}.png`;
+      enlace.href = lienzo.toDataURL("image/png");
+      enlace.click();
+    } catch (fallo) {
+      console.error("No se pudo generar la imagen", fallo);
+      alert("No se pudo generar la imagen: " + (fallo?.message || "error desconocido"));
+    } finally {
+      setGenerando(false);
+    }
+  };
+
   const exportToExcel = () => {
     const data = [];
 
@@ -416,6 +450,16 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
         </tbody>
       </table>
       </div>
+
+      {/* Lo que se convierte en imagen. Está fuera de la pantalla a propósito. */}
+      <LaminaLiquidacion
+        ref={lamina}
+        documentos={documentos}
+        actos={rows.filter((r) => !r.isSummary && !r.isAdditional && !r.isNote)}
+        sueltos={rows.filter((r) => !r.isSummary && !r.isAdditional && !r.isNote && r.tributaria === null)}
+        totales={totales}
+        fechaPago={fechaPago}
+      />
     </div>
   );
 });

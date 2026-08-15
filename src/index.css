@@ -151,6 +151,10 @@ button.exportar {
   background-color: #7e57c2; /* Purple */
 }
 
+button.imagen {
+  background-color: #0e7490; /* Azul petróleo */
+}
+
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -555,6 +559,7 @@ tbody tr.summary-row:first-of-type td {
 .button-row .calcular { background-color: #d97706; color: white; }
 .button-row .limpiar  { background-color: #b91c1c; color: white; }
 .button-row .exportar { background-color: #6b21a8; color: white; }
+.button-row .imagen { background-color: #0e7490; color: white; }
 
 .button-row button:disabled {
   opacity: 0.55;
@@ -1226,4 +1231,146 @@ tbody tr.summary-row:first-of-type td {
   #output-section {
     max-width: 1560px;
   }
+}
+
+
+/* ── Lámina de la liquidación (lo que se convierte en imagen) ────────────────
+   Vive fuera de la pantalla: html2canvas la fotografía igual, y así no estorba
+   mientras se trabaja en la tabla. No se usa display:none porque entonces no
+   tendría medidas y saldría en blanco. */
+.lam {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  width: 800px;
+  padding: 32px;
+  background: white;
+  color: #1f2937;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.lam-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 3px solid #166534;
+  padding-bottom: 14px;
+}
+
+.lam-escudo { width: 62px; height: 62px; object-fit: contain; }
+
+.lam-cabecera h1 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #166534;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.lam-cabecera p { font-size: 12.5px; color: #6b7280; margin: 3px 0 0; }
+
+.lam-fecha {
+  background: #f0fdf4;
+  border-left: 4px solid #166534;
+  padding: 9px 12px;
+  margin: 16px 0;
+  font-size: 13px;
+  color: #14532d;
+}
+
+.lam-doc {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+
+.lam-doc-titulo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #166534;
+  color: white;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.lam-doc-titulo span {
+  background: #bbf7d0;
+  color: #14532d;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.lam-tabla { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+
+.lam-tabla th {
+  background: #f3f4f6;
+  color: #374151;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.lam-tabla th:not(:first-child), .lam-tabla td.num { text-align: right; }
+
+.lam-tabla td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #f3f4f6;
+  font-variant-numeric: tabular-nums;
+}
+
+.lam-doc-pie { padding: 8px 12px; background: #fafafa; }
+
+.lam-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12.5px;
+  padding: 3px 0;
+}
+
+.lam-fila.mora { color: #92400e; font-weight: 600; }
+.lam-fila.tenue { color: #9ca3af; }
+
+.lam-fila.total-doc {
+  border-top: 1px dashed #d1d5db;
+  margin-top: 5px;
+  padding-top: 6px;
+  font-weight: 700;
+}
+
+.lam-totales {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 18px;
+}
+
+.lam-totales .lam-fila { font-size: 13px; padding: 4px 0; }
+
+.lam-fila.destacado {
+  border-top: 2px solid #166534;
+  margin-top: 6px;
+  padding-top: 9px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #166534;
+}
+
+.lam-fila.positivo strong { color: #166534; }
+.lam-fila.negativo strong { color: #b91c1c; }
+
+.lam-nota {
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.5;
 }

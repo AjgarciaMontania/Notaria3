@@ -211,6 +211,14 @@ function App() {
     resultRef.current?.calcularTodo(dineroStr);
   }, [hasInserted]);
 
+  const handleImagen = useCallback(() => {
+    if (!hasInserted || rows.length === 0) {
+      alert("Primero calcula la liquidación.");
+      return;
+    }
+    resultRef.current?.generarImagen();
+  }, [hasInserted, rows.length]);
+
   const handleExportar = useCallback(() => {
     if (!hasInserted || rows.length === 0) {
       alert("Primero ingrese datos y calcule.");
@@ -387,6 +395,7 @@ function App() {
             onCalcular={handleCalcular}
             onLimpiar={handleLimpiar}
             onExportar={handleExportar}
+            onImagen={handleImagen}
             calcularDisabled={!hasInserted}
           />
 
