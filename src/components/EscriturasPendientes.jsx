@@ -153,7 +153,18 @@ export default function EscriturasPendientes({ isAdmin }) {
       querySnapshot.forEach((doc) => {
         data.push({ id: doc.id, ...doc.data() });
       });
-      data.sort((a, b) => a.item - b.item);
+      // ── SOBRE EL CAMPO "item" ────────────────────────────────────────────
+      // Ya NO es el número que se ve en la columna ITEM. Es solo la llave con
+      // la que se ordena la lista: va creciendo y nunca se reescribe.
+      //
+      // El número que se muestra es la POSICIÓN en la tabla, así que al borrar
+      // una escritura las de abajo se corren solas y la cuenta siempre va
+      // 1, 2, 3… sin huecos. Antes se mostraba "item" tal cual y al borrar la
+      // tercera quedaba 1, 2, 4.
+      //
+      // El "|| 0" es por si alguna ficha vieja no trae el campo: sin él la
+      // resta daría NaN y el orden de la tabla saldría revuelto.
+      data.sort((a, b) => (a.item || 0) - (b.item || 0));
       setEscrituras(data);
     });
     return () => unsubscribe();
@@ -244,8 +255,10 @@ export default function EscriturasPendientes({ isAdmin }) {
   };
 
   const exportToExcel = () => {
-    const data = escrituras.map(r => ({
-      ITEM: r.item,
+    // El ITEM del Excel es la misma posición que se ve en pantalla, para que
+    // la hoja que se manda a Florencia coincida con lo que hay en la tabla.
+    const data = escrituras.map((r, posicion) => ({
+      ITEM: posicion + 1,
       ACTO: r.acto,
       "NUMERO ESCRITURA": r.numeroEscritura,
       "FECHA ESCRITURA": r.fechaEscritura,
@@ -445,7 +458,7 @@ export default function EscriturasPendientes({ isAdmin }) {
           </tr>
         </thead>
         <tbody>
-          {escrituras.map((r) => (
+          {escrituras.map((r, posicion) => (
             <tr
               key={r.id}
               // El verde (enviada) manda sobre el amarillo (en registro):
@@ -453,7 +466,7 @@ export default function EscriturasPendientes({ isAdmin }) {
               className={r.enviado ? "fila-enviada" : r.enRegistro ? "fila-en-registro" : undefined}
               style={{ borderBottom: "1px solid #e5e7eb" }}
             >
-              <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.item}</td>
+              <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{posicion + 1}</td>
               <td className="celda-texto" style={{ padding: "12px 10px", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4" }}>{r.acto}</td>
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.numeroEscritura}</td>
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.fechaEscritura}</td>
