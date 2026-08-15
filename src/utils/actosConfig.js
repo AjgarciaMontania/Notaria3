@@ -19,6 +19,16 @@
  */
 export const TARIFA_MINIMA_SIN_CUANTIA = 233500;
 
+// ⚠️ Los IMPORTES en pesos ya no se escriben aquí: viven en tarifasConfig.js y
+// se administran desde el panel "Tarifas" de la página web. En este archivo
+// quedan solo las BANDERAS que dicen QUÉ cobra cada acto:
+//
+//   tributariaMinima: true  → cobra el mínimo sin cuantía (tarifasConfig)
+//   extrasHipoteca: true    → suma la constancia y el certificado (tarifasConfig)
+//
+// Los porcentajes del impuesto de registro (1% y 0,5%) sí se quedan aquí,
+// porque los fija la Ley 223 de 1995 y no una resolución anual.
+
 export const ACTOS_CONFIG = {
   "COMPRAVENTA": {
     tributariaRate: 0.01,
@@ -29,19 +39,15 @@ export const ACTOS_CONFIG = {
   "HIPOTECA CON BANCO AGRARIO": {
     tributariaRate: 0.005,
     oripTipo: "cuantia",
-    // Constancia de inscripción: entra al subtotal del registro y sí paga el 2%.
-    oripExtras: 17300,
-    // Certificado de tradición: la ORIP lo cobra como un trámite APARTE y no
-    // paga el 2% de conservación documental. Confirmado con el recibo de la
-    // escritura 089 (18/06/2026): registro $172.200 + 2% = $175.600, y el
-    // certificado $24.300 se suma después, sin recargo.
-    // Antes iban sumados como $41.600 y el 2% caía también sobre el
-    // certificado, cobrando $500 de más en cada hipoteca.
-    oripFueraDel2: 24300, // RES-2026-001726-6
+    // Suma la constancia de inscripción (que sí paga el 2%) y el certificado de
+    // tradición (que NO lo paga). Los dos importes están en tarifasConfig.js.
+    // Confirmado con el recibo de la escritura 089 (18/06/2026):
+    // registro $172.200 + 2% = $175.600, y el certificado $24.300 aparte.
+    extrasHipoteca: true,
     honorarioContable: true,
   },
   "CERTIFICADO CANCELACIÓN HIPOTECA": {
-    tributaria: TARIFA_MINIMA_SIN_CUANTIA,
+    tributariaMinima: true,
     oripTipo: "cuantia",
     honorarioContable: true,
   },
@@ -87,7 +93,7 @@ export const ACTOS_CONFIG = {
   "ACTO SIN CUANTÍA": {
     // Sin tributariaRate a propósito: en ResultTable el rate tiene prioridad
     // sobre el importe fijo, y con rate 0 esta tarifa nunca se aplicaría.
-    tributaria: TARIFA_MINIMA_SIN_CUANTIA,
+    tributariaMinima: true,
     oripTipo: "sin_cuantia",
     honorarioContable: false,
   },
@@ -105,7 +111,7 @@ export const ACTOS_CONFIG = {
   //   (p. ej. matrícula 420-113130: "CANCELACIÓN REGISTRO · cuantía 1 ·
   //   $233.500" más intereses de mora).
   "CANCELACIÓN ENAJENACIÓN": {
-    tributaria: TARIFA_MINIMA_SIN_CUANTIA,
+    tributariaMinima: true,
     oripTipo: "sin_cuantia",
     oripCount: 1,
     honorarioContable: true,

@@ -12,6 +12,8 @@ import { useTasasHistoricas } from "./hooks/useTasasHistoricas";
 import { useAuth } from "./hooks/useAuth";
 import { useRol } from "./hooks/useRol";
 import UsuariosPanel from "./components/UsuariosPanel";
+import TarifasPanel from "./components/TarifasPanel";
+import { useTarifas } from "./hooks/useTarifas";
 import { puedeOperar, puedeAdministrarUsuarios, ETIQUETAS_ROL, ROL_POR_DEFECTO } from "./utils/roles.js";
 
 import icontecLogo from './assets/icontec-iso9001.png';
@@ -134,6 +136,8 @@ function App() {
 
   const { tasaAnual, meta, loading: loadingTasa } = useTasaMora();
   const { tasas: tasasHistoricas } = useTasasHistoricas();
+  // Tarifas administradas: las lee todo el mundo, las edita el administrador
+  const { tarifas } = useTarifas();
   const resultRef = useRef();
 
   const handleCountChange = useCallback((field) => (e) => {
@@ -214,7 +218,7 @@ function App() {
   }, [hasInserted, rows.length]);
 
   // Panel de login compartido para pestañas protegidas
-  const isProtectedTab = activeTab === "escrituras" || activeTab === "evidencias" || activeTab === "usuarios";
+  const isProtectedTab = activeTab === "escrituras" || activeTab === "evidencias" || activeTab === "usuarios" || activeTab === "tarifas";
 
   return (
     <div>
@@ -240,6 +244,11 @@ function App() {
         {esAdministrador && (
           <button onClick={() => setActiveTab("usuarios")} style={tabStyle(activeTab === "usuarios")}>
             👥 Usuarios
+          </button>
+        )}
+        {esAdministrador && (
+          <button onClick={() => setActiveTab("tarifas")} style={tabStyle(activeTab === "tarifas")}>
+            💰 Tarifas
           </button>
         )}
       </div>
@@ -397,6 +406,7 @@ function App() {
             fechaPago={fechaPago}
             tasaMoraDefault={tasaAnual}
             tasasHistoricas={tasasHistoricas}
+            tarifas={tarifas}
           />
 
           {/* Panel admin para actualizar tasa */}
@@ -456,6 +466,10 @@ function App() {
 
       {activeTab === "usuarios" && esAdministrador && (
         <UsuariosPanel correoActual={usuario?.email?.toLowerCase()} />
+      )}
+
+      {activeTab === "tarifas" && esAdministrador && (
+        <TarifasPanel correoActual={usuario?.email?.toLowerCase()} />
       )}
     </div>
   );

@@ -16,7 +16,7 @@ import { liquidar, DESCUENTO_MORA, MORA_ANNUAL_RATE } from "../utils/motorLiquid
 
 const NUM_COLUMNAS = 12;
 
-const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, tasaMoraDefault, tasasHistoricas }, ref) => {
+const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, tasaMoraDefault, tasasHistoricas, tarifas }, ref) => {
   const TASA_EFECTIVA = tasaMoraDefault ?? MORA_ANNUAL_RATE;
   const TASAS_MES = tasasHistoricas ?? {};
   const [documentos, setDocumentos] = useState([]);
@@ -34,6 +34,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
       tasaMoraDefault: TASA_EFECTIVA,
       tasasHistoricas: TASAS_MES,
       dineroEnviado: dineroEnviadoStr,
+      tarifas,
     });
 
     setDocumentos(docs);

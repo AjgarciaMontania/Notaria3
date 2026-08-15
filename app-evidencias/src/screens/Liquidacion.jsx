@@ -20,7 +20,7 @@ const ACTO_VACIO = () => ({
 });
 
 export default function Liquidacion({ onSalir }) {
-  const { tasaAnual, tasasHistoricas } = useTarifas();
+  const { tasaAnual, tasasHistoricas, tarifas } = useTarifas();
   const [actos, setActos] = useState([]);
   const [fechaPago, setFechaPago] = useState(HOY);
   const [dineroEnviado, setDineroEnviado] = useState('');
@@ -42,8 +42,9 @@ export default function Liquidacion({ onSalir }) {
         tasaMoraDefault: tasaAnual ?? MORA_ANNUAL_RATE,
         tasasHistoricas,
         dineroEnviado,
+        tarifas,
       }),
-    [actos, fechaPago, tasaAnual, tasasHistoricas, dineroEnviado]
+    [actos, fechaPago, tasaAnual, tasasHistoricas, dineroEnviado, tarifas]
   );
 
   const { totales, documentos = [], mesesSinTasa = [] } = resultado;

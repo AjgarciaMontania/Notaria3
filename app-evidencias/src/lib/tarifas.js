@@ -7,6 +7,7 @@ import { db } from '../firebase';
 export function useTarifas() {
   const [tasaAnual, setTasaAnual] = useState(null);   // respaldo general
   const [tasasHistoricas, setTasasHistoricas] = useState({}); // "YYYY-MM" → decimal
+  const [tarifas, setTarifas] = useState(null);       // config/tarifas
 
   useEffect(() => {
     const pararTasa = onSnapshot(
@@ -19,11 +20,19 @@ export function useTarifas() {
       (d) => setTasasHistoricas(d.exists() ? (d.data().meses ?? {}) : {}),
       (e) => console.error('No se pudieron leer las tasas históricas', e)
     );
+    // Tarifas en pesos (derechos ORIP, honorarios, retiros…). Se administran
+    // desde el panel de la página web y llegan aquí al instante, sin reinstalar.
+    const pararTarifas = onSnapshot(
+      doc(db, 'config', 'tarifas'),
+      (d) => setTarifas(d.exists() ? d.data() : null),
+      (e) => console.error('No se pudieron leer las tarifas', e)
+    );
     return () => {
       pararTasa();
       pararHist();
+      pararTarifas();
     };
   }, []);
 
-  return { tasaAnual, tasasHistoricas };
+  return { tasaAnual, tasasHistoricas, tarifas };
 }

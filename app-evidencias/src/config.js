@@ -16,7 +16,7 @@ export const MINUTOS_INACTIVIDAD = 10;
 // Versión que se muestra en la pantalla de acceso, para saber de un vistazo
 // qué APK tiene instalada cada celular. Debe coincidir con versionName en
 // android/app/build.gradle.
-export const VERSION_APP = '2.4';
+export const VERSION_APP = '2.5';
 
 // Nombre de la notaría que se muestra en la pantalla de acceso.
 export const NOMBRE_NOTARIA = 'Notaría Única de Cartagena del Chairá';

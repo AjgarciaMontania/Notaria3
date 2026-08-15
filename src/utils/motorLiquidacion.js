@@ -12,28 +12,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { ACTOS_CONFIG } from "./actosConfig.js";
 import { getUsuraDelMes, claveMes } from "./tasasHistoricas.js";
+import { TARIFAS_BASE, combinarTarifas } from "./tarifasConfig.js";
 
-// ── Tarifas ORIP 2026 (RES-2026-001726-6) ──────────────────────────────────
-export const SIN_CUANTIA_BASE = 29500;
-export const FOLIO_ADICIONAL = 15300;
-
-export const FEE_CONSTANTS = {
-  BASE_FEE: 53100,
-  TIERS: [
-    { limit: 12852101, rate: null },
-    { limit: 192778606, rate: 0.00911 },
-    { limit: 334149656, rate: 0.01131 },
-    { limit: 494798857, rate: 0.01260 },
-    { limit: Infinity, rate: 0.01333 },
-  ],
-  // 2% de sistematización y conservación documental (Parágrafo 8)
-  ADDITIONAL_RATE: 1.02,
-};
+// ── Tarifas ──────────────────────────────────────────────────────────────────
+// Los importes ya no se escriben aquí: viven en tarifasConfig.js y se
+// administran desde el panel "Tarifas" de la página web, igual que las tasas
+// de mora. Estas constantes se conservan porque son el respaldo del código y
+// las usan algunas pantallas, pero SIEMPRE salen de la misma tabla.
+export const SIN_CUANTIA_BASE = TARIFAS_BASE.sinCuantiaBase;
+export const FOLIO_ADICIONAL = TARIFAS_BASE.folioAdicional;
 
 export const HONORARIOS_RATES = {
-  FIRST: 35000,
-  SECOND_TO_THIRD: 25000,
-  REMAINING: 20000,
+  FIRST: TARIFAS_BASE.honorarios.primero,
+  SECOND_TO_THIRD: TARIFAS_BASE.honorarios.segundoTercero,
+  REMAINING: TARIFAS_BASE.honorarios.resto,
 };
 
 // ── Mora por extemporaneidad ────────────────────────────────────────────────
@@ -53,7 +45,7 @@ export const HONORARIOS_RATES = {
 // tanto por exceso como por defecto según el caso.
 
 /** Puntos que se restan a la usura para obtener la mora (art. 635 E.T.). */
-export const DESCUENTO_MORA = 0.02;
+export const DESCUENTO_MORA = TARIFAS_BASE.descuentoMora;
 
 /** Tasa de respaldo, solo si no hay ninguna tabla disponible. */
 export const MORA_ANNUAL_RATE = 0.2479;
@@ -96,7 +88,9 @@ function esBisiesto(anio) {
  * @returns {{ diasVencidos, mora, moraExacta, desglose, mesesSinTasa }}
  */
 export function calcularMoraEscritura(fechaEscritura, tributaria, fechaPago, opciones = {}) {
-  const { tasasHistoricas = {}, tasaFija = null, tasaRespaldo = null } = opciones;
+  const { tasasHistoricas = {}, tasaFija = null, tasaRespaldo = null, tarifas = null } = opciones;
+  const T = tarifas || TARIFAS_BASE;
+  const descuento = T.descuentoMora;
 
   const vacio = { diasVencidos: 0, mora: 0, moraExacta: 0, desglose: [], mesesSinTasa: [] };
   if (!fechaEscritura || !fechaPago || !tributaria || tributaria <= 0) return vacio;
@@ -124,9 +118,9 @@ export function calcularMoraEscritura(fechaEscritura, tributaria, fechaPago, opc
       if (usura == null) {
         mesesSinTasa.add(clave);
         if (tasaRespaldo == null) continue; // sin tasa: ese día no suma, y se avisa
-        tasaDia = tasaRespaldo - DESCUENTO_MORA;
+        tasaDia = tasaRespaldo - descuento;
       } else {
-        tasaDia = usura - DESCUENTO_MORA;
+        tasaDia = usura - descuento;
       }
     }
 
@@ -148,11 +142,17 @@ export function calcularMoraEscritura(fechaEscritura, tributaria, fechaPago, opc
   };
 }
 
-/** Derecho base de ORIP, sin el 2% de conservación documental. */
-export function calcOripBase(valor) {
+/**
+ * Derecho base de ORIP, sin el 2% de conservación documental.
+ * @param {number} valor
+ * @param {Object} [tarifas] tabla activa; si no se pasa, la del código
+ */
+export function calcOripBase(valor, tarifas) {
   if (valor <= 0) return 0;
-  const tier = FEE_CONSTANTS.TIERS.find((t) => valor <= t.limit);
-  return tier.rate ? valor * tier.rate : FEE_CONSTANTS.BASE_FEE;
+  const T = tarifas || TARIFAS_BASE;
+  const tramo = T.tramos.find((t) => t.limite === null || valor <= t.limite);
+  if (!tramo) return T.derechoMinimo;
+  return tramo.tasa ? valor * tramo.tasa : T.derechoMinimo;
 }
 
 /** Convierte "1.234.567" en 1234567. */
@@ -188,9 +188,12 @@ export function liquidar(actos, opciones = {}) {
     tasaMoraDefault = MORA_ANNUAL_RATE,
     tasasHistoricas = {},
     dineroEnviado = 0,
+    tarifas = null,
   } = opciones;
 
   const USURA_RESPALDO = tasaMoraDefault ?? MORA_ANNUAL_RATE;
+  // Tarifas activas: lo guardado en Firestore sobre los valores del código.
+  const T = combinarTarifas(tarifas);
 
   let tributariaTotal = 0;
   let oripTotal = 0;
@@ -213,10 +216,10 @@ export function liquidar(actos, opciones = {}) {
       contHonorarios++;
       honorarios +=
         contHonorarios === 1
-          ? HONORARIOS_RATES.FIRST
+          ? T.honorarios.primero
           : contHonorarios <= 3
-            ? HONORARIOS_RATES.SECOND_TO_THIRD
-            : HONORARIOS_RATES.REMAINING;
+            ? T.honorarios.segundoTercero
+            : T.honorarios.resto;
     }
 
     // Actos que no pasan por ORIP ni pagan tributaria
@@ -231,6 +234,8 @@ export function liquidar(actos, opciones = {}) {
       tributaria = aNumero(fila.tributariaManual);
     } else if (config.tributariaRate !== undefined) {
       tributaria = Math.round(valor * config.tributariaRate);
+    } else if (config.tributariaMinima) {
+      tributaria = T.tarifaMinimaSinCuantia;
     } else if (config.tributaria !== undefined) {
       tributaria = config.tributaria;
     }
@@ -243,15 +248,19 @@ export function liquidar(actos, opciones = {}) {
     // recibo de la escritura 089 lo confirma: registro $172.200 + 2% = $175.600,
     // y el certificado $24.300 se suma después, sin recargo.
     let orip = 0;
-    const fueraDel2 = config.oripFueraDel2 || 0;
+    const conElDosPorCiento = 1 + T.conservacion;
+    // Extras propios de la hipoteca, tomados de la tabla de tarifas
+    const extraDentro = config.extrasHipoteca ? T.hipotecaConstancia : (config.oripExtras || 0);
+    const extraFuera = config.extrasHipoteca ? T.hipotecaCertificado : (config.oripFueraDel2 || 0);
+
     if (config.oripTipo === "cuantia") {
-      const base = calcOripBase(valor) + (config.oripExtras || 0);
-      const subtotal = base + FOLIO_ADICIONAL * foliosAdic;
-      orip = Math.round((subtotal * FEE_CONSTANTS.ADDITIONAL_RATE) / 100) * 100 + fueraDel2;
+      const base = calcOripBase(valor, T) + extraDentro;
+      const subtotal = base + T.folioAdicional * foliosAdic;
+      orip = Math.round((subtotal * conElDosPorCiento) / 100) * 100 + extraFuera;
     } else if (config.oripTipo === "sin_cuantia") {
       const numActos = fila.numActos || 1;
-      const subtotal = SIN_CUANTIA_BASE * numActos + FOLIO_ADICIONAL * foliosAdic;
-      orip = Math.round((subtotal * FEE_CONSTANTS.ADDITIONAL_RATE) / 100) * 100 + fueraDel2;
+      const subtotal = T.sinCuantiaBase * numActos + T.folioAdicional * foliosAdic;
+      orip = Math.round((subtotal * conElDosPorCiento) / 100) * 100 + extraFuera;
     }
 
     tributariaTotal += tributaria;
@@ -295,6 +304,7 @@ export function liquidar(actos, opciones = {}) {
       tasasHistoricas,
       tasaFija: g.tasaManual,
       tasaRespaldo: USURA_RESPALDO,
+      tarifas: T,
     });
     r.mesesSinTasa.forEach((m) => mesesSinTasa.add(m));
     moraTotal += r.mora;
@@ -323,8 +333,8 @@ export function liquidar(actos, opciones = {}) {
 
   // ── PASO 4: totales ───────────────────────────────────────────────────────
   const subtotal = tributariaTotal + oripTotal + igacTotal + saberTotal + moraTotal;
-  // Un retiro de $3.000 por cada $600.000 a consignar, redondeando hacia arriba
-  const retiros = Math.round(Math.ceil((subtotal + honorarios) / 600000) * 3000);
+  // Un retiro por cada tramo a consignar, redondeando hacia arriba
+  const retiros = Math.round(Math.ceil((subtotal + honorarios) / T.retiroPorCada) * T.retiroValor);
   const totalConsignar = subtotal + honorarios + retiros;
   const enviado = aNumero(dineroEnviado);
 
@@ -332,6 +342,7 @@ export function liquidar(actos, opciones = {}) {
     actos: calculados,
     documentos,
     mesesSinTasa: [...mesesSinTasa].sort(),
+    tarifasUsadas: T,
     totales: {
       tributariaTotal,
       oripTotal,
