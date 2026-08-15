@@ -122,7 +122,7 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
     if (!archivo) return;
     // El mismo selector sirve para el soporte del lote y para el recibo de una
     // escritura: lo que decide es a quién se le pidió.
-    if (reciboPara.current) {
+    if (reciboPara.current?.id) {
       const destino = reciboPara.current;
       reciboPara.current = null;
       await subirRecibo(archivo, archivo.name, destino);
@@ -147,7 +147,18 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
     }
   };
 
-  const iniciarEscaneo = async (recibo = null) => {
+  /**
+   * Abre el escáner. Si se le pasa una escritura, lo escaneado será el RECIBO
+   * de esa escritura; si no, el soporte de envío del lote seleccionado.
+   *
+   * Se comprueba que traiga `id` a propósito: si este método se conecta por
+   * error como `onClick={iniciarEscaneo}`, React le entrega el evento del clic
+   * y sin esta comprobación lo tomaría por una escritura. Eso fue justo lo que
+   * pasó: el botón del lote terminaba pidiendo "guardar recibo de la escritura
+   * undefined" y fallaba con "Escritura no válida".
+   */
+  const iniciarEscaneo = async (escritura = null) => {
+    const recibo = escritura && escritura.id ? escritura : null;
     setEscaneo({ paginas: [], recibo });
     await agregarPagina('camara');
   };
@@ -158,7 +169,7 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
     setTrabajando('Generando PDF…');
     try {
       const pdf = await fotosAPdf(paginas);
-      if (escaneo.recibo) {
+      if (escaneo.recibo?.id) {
         await subirRecibo(pdf, nombreEscaneo(), escaneo.recibo);
       } else {
         await enviarConSoporte(pdf, nombreEscaneo());
@@ -245,7 +256,7 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
             ‹ Cancelar
           </button>
           <div className="barra-centro">
-            <h1>{escaneo.recibo ? 'Escanear recibo' : 'Escanear soporte'}</h1>
+            <h1>{escaneo.recibo?.id ? 'Escanear recibo' : 'Escanear soporte'}</h1>
             <span className="barra-sub">
               {escaneo.paginas.length}{' '}
               {escaneo.paginas.length === 1 ? 'página' : 'páginas'}
@@ -297,8 +308,8 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
             disabled={!escaneo.paginas.length || Boolean(trabajando)}
           >
             {trabajando ||
-              (escaneo.recibo
-                ? `Guardar recibo de la escritura ${escaneo.recibo.numeroEscritura}`
+              (escaneo.recibo?.id
+                ? `Guardar recibo de la escritura ${escaneo.recibo.numeroEscritura || ''}`.trim()
                 : `Adjuntar a ${seleccion.length} y marcar enviadas`)}
           </button>
         </main>
@@ -530,7 +541,7 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
             {seleccion.length === 1 ? 'escritura seleccionada' : 'escrituras seleccionadas'}
           </p>
           <div className="fila-botones">
-            <button className="boton naranja" onClick={iniciarEscaneo} disabled={Boolean(trabajando)}>
+            <button className="boton naranja" onClick={() => iniciarEscaneo()} disabled={Boolean(trabajando)}>
               📷 Escanear
             </button>
             <button
