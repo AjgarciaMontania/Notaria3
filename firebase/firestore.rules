@@ -99,6 +99,12 @@ service cloud.firestore {
       allow read, write: if puedeOperar();
     }
 
+    // ── Historial de liquidaciones ──────────────────────────────────────────
+    // Queda constancia de lo que se cobró, quién lo hizo y con qué tarifas.
+    match /liquidaciones/{registro} {
+      allow read, write: if puedeOperar();
+    }
+
     // ── Todo lo demás queda cerrado ─────────────────────────────────────────
     // Si mañana se agrega una colección nueva, por defecto nace protegida:
     // hay que añadirla arriba a propósito para que sea accesible.

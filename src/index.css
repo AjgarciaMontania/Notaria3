@@ -155,6 +155,10 @@ button.imagen {
   background-color: #0e7490; /* Azul petróleo */
 }
 
+button.guardar {
+  background-color: #475569; /* Gris pizarra */
+}
+
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -566,6 +570,7 @@ tbody tr.summary-row:first-of-type td {
 .button-row .limpiar  { background-color: #b91c1c; color: white; }
 .button-row .exportar { background-color: #6b21a8; color: white; }
 .button-row .imagen { background-color: #0e7490; color: white; }
+.button-row .guardar { background-color: #475569; color: white; }
 
 .button-row button:disabled {
   opacity: 0.55;

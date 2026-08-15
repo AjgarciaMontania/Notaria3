@@ -13,6 +13,8 @@ import { useAuth } from "./hooks/useAuth";
 import { useRol } from "./hooks/useRol";
 import UsuariosPanel from "./components/UsuariosPanel";
 import TarifasPanel from "./components/TarifasPanel";
+import HistorialPanel from "./components/HistorialPanel";
+import RespaldoPanel from "./components/RespaldoPanel";
 import { useTarifas } from "./hooks/useTarifas";
 import { MINUTOS_INACTIVIDAD } from "./utils/configuracion.js";
 import { puedeOperar, puedeAdministrarUsuarios, ETIQUETAS_ROL, ROL_POR_DEFECTO } from "./utils/roles.js";
@@ -219,6 +221,14 @@ function App() {
     resultRef.current?.generarImagen();
   }, [hasInserted, rows.length]);
 
+  const handleGuardar = useCallback(() => {
+    if (!hasInserted || rows.length === 0) {
+      alert("Primero calcula la liquidación.");
+      return;
+    }
+    resultRef.current?.guardarEnHistorial();
+  }, [hasInserted, rows.length]);
+
   const handleExportar = useCallback(() => {
     if (!hasInserted || rows.length === 0) {
       alert("Primero ingrese datos y calcule.");
@@ -228,7 +238,7 @@ function App() {
   }, [hasInserted, rows.length]);
 
   // Panel de login compartido para pestañas protegidas
-  const isProtectedTab = activeTab === "escrituras" || activeTab === "evidencias" || activeTab === "usuarios" || activeTab === "tarifas";
+  const isProtectedTab = activeTab === "escrituras" || activeTab === "evidencias" || activeTab === "usuarios" || activeTab === "tarifas" || activeTab === "historial" || activeTab === "respaldo";
 
   return (
     <div>
@@ -251,6 +261,9 @@ function App() {
         <button onClick={() => setActiveTab("evidencias")} style={tabStyle(activeTab === "evidencias")}>
           Evidencias
         </button>
+        <button onClick={() => setActiveTab("historial")} style={tabStyle(activeTab === "historial")}>
+          📒 Historial
+        </button>
         {esAdministrador && (
           <button onClick={() => setActiveTab("usuarios")} style={tabStyle(activeTab === "usuarios")}>
             👥 Usuarios
@@ -259,6 +272,11 @@ function App() {
         {esAdministrador && (
           <button onClick={() => setActiveTab("tarifas")} style={tabStyle(activeTab === "tarifas")}>
             💰 Tarifas
+          </button>
+        )}
+        {esAdministrador && (
+          <button onClick={() => setActiveTab("respaldo")} style={tabStyle(activeTab === "respaldo")}>
+            🗄️ Respaldo
           </button>
         )}
       </div>
@@ -396,6 +414,7 @@ function App() {
             onLimpiar={handleLimpiar}
             onExportar={handleExportar}
             onImagen={handleImagen}
+            onGuardar={handleGuardar}
             calcularDisabled={!hasInserted}
           />
 
@@ -479,8 +498,16 @@ function App() {
         <UsuariosPanel correoActual={usuario?.email?.toLowerCase()} />
       )}
 
+      {activeTab === "historial" && isAdmin && (
+        <HistorialPanel isAdmin={esAdministrador} />
+      )}
+
       {activeTab === "tarifas" && esAdministrador && (
         <TarifasPanel correoActual={usuario?.email?.toLowerCase()} />
+      )}
+
+      {activeTab === "respaldo" && esAdministrador && (
+        <RespaldoPanel correoActual={usuario?.email?.toLowerCase()} />
       )}
     </div>
   );

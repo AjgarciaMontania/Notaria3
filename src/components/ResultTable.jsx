@@ -6,6 +6,7 @@ import html2canvas from "html2canvas";
 import LaminaLiquidacion from "./LaminaLiquidacion";
 import { ACTOS_CONFIG } from "../utils/actosConfig";
 import { liquidar, DESCUENTO_MORA, MORA_ANNUAL_RATE } from "../utils/motorLiquidacion.js";
+import { guardarLiquidacion } from "../utils/historialLiquidaciones";
 
 // Las tarifas, la mora y los totales viven en utils/motorLiquidacion.js:
 // una sola fuente de verdad compartida con la APK del celular.
@@ -24,17 +25,18 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
   const [documentos, setDocumentos] = useState([]);
   const [mesesSinTasa, setMesesSinTasa] = useState([]);
   const [totales, setTotales] = useState(null);
+  const [tarifasUsadas, setTarifasUsadas] = useState(null);
   const [generando, setGenerando] = useState(false);
   const lamina = useRef(null);
 
-  useImperativeHandle(ref, () => ({ calcularTodo, exportToExcel, generarImagen }));
+  useImperativeHandle(ref, () => ({ calcularTodo, exportToExcel, generarImagen, guardarEnHistorial }));
 
   const calcularTodo = (dineroEnviadoStr) => {
     if (calcularDisabled) return;
 
     const actos = rows.filter((r) => !r.isSummary && !r.isAdditional && !r.isNote);
 
-    const { actos: calculados, documentos: docs, totales, mesesSinTasa: faltan } = liquidar(actos, {
+    const { actos: calculados, documentos: docs, totales, mesesSinTasa: faltan, tarifasUsadas: usadas } = liquidar(actos, {
       fechaPago,
       tasaMoraDefault: TASA_EFECTIVA,
       tasasHistoricas: TASAS_MES,
@@ -45,6 +47,7 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
     setDocumentos(docs);
     setMesesSinTasa(faltan);
     setTotales(totales);
+    setTarifasUsadas(usadas);
 
     setRows([
       ...calculados,
@@ -116,6 +119,28 @@ const ResultTable = forwardRef(({ rows, setRows, calcularDisabled, fechaPago, ta
       alert("No se pudo generar la imagen: " + (fallo?.message || "error desconocido"));
     } finally {
       setGenerando(false);
+    }
+  };
+
+  /** Deja la liquidación registrada en el historial. */
+  const guardarEnHistorial = async () => {
+    if (!totales || !documentos.length) {
+      alert("Primero calcula la liquidación.");
+      return;
+    }
+    try {
+      await guardarLiquidacion({
+        fechaPago,
+        documentos,
+        actos: rows.filter((r) => !r.isSummary && !r.isAdditional && !r.isNote),
+        totales,
+        tarifas: tarifasUsadas,
+        mesesSinTasa,
+      });
+      alert("Liquidación guardada en el historial.");
+    } catch (fallo) {
+      console.error(fallo);
+      alert("No se pudo guardar: " + (fallo?.message || "error desconocido"));
     }
   };
 
