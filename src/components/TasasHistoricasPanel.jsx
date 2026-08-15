@@ -7,6 +7,7 @@ import { useState, useMemo } from "react";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { TASAS_BASE, claveMes } from "../utils/tasasHistoricas";
+import { DESCUENTO_MORA } from "../utils/motorLiquidacion.js";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -85,10 +86,12 @@ export default function TasasHistoricasPanel({ tasasGuardadas }) {
       </h3>
 
       <p style={{ fontSize: "0.86rem", color: "#334155", lineHeight: 1.5, marginBottom: "1rem" }}>
-        Esta es la tabla que usa la columna <strong>% MORA</strong> de la liquidación.
-        La Gobernación aplica la tasa del <strong>mes en que vence el plazo</strong> de
-        2 meses; si el pago ocurre en un año posterior, aplica la de <strong>enero del
-        año de pago</strong>. Agrega aquí cada mes nuevo que certifique la Superfinanciera.
+        Aquí se escribe la <strong>tasa de usura</strong> tal como la certifica la
+        Superfinanciera, sin restarle nada. La mora se calcula sola: el sistema
+        acumula <strong>día por día</strong> desde que vence el plazo de 2 meses, y a
+        cada día le aplica la usura de su mes <strong>menos {(DESCUENTO_MORA * 100).toFixed(0)} puntos</strong>
+        (Estatuto Tributario, art. 635). Por eso una escritura vieja puede pasar por
+        muchas tasas distintas. Agrega aquí cada mes nuevo apenas salga.
       </p>
 
       <form onSubmit={guardar} style={{ background: "white", borderRadius: "8px", padding: "1rem", border: "1px solid #bfdbfe" }}>
@@ -126,7 +129,7 @@ export default function TasasHistoricasPanel({ tasasGuardadas }) {
 
           <div style={{ display: "flex", flexDirection: "column", flex: "0 1 120px" }}>
             <label htmlFor="tasa-pct" style={{ fontWeight: "bold", color: "#374151", fontSize: "0.85rem", marginBottom: "4px" }}>
-              Tasa anual (%)
+              Usura anual (%)
             </label>
             <input
               id="tasa-pct"
@@ -139,13 +142,18 @@ export default function TasasHistoricasPanel({ tasasGuardadas }) {
               onChange={(e) => setPorcentaje(e.target.value)}
               style={{ padding: "10px", borderRadius: "8px", border: "1px solid #d1d5db", fontSize: "0.95rem", width: "100%" }}
             />
+            {porcentaje !== "" && !Number.isNaN(parseFloat(porcentaje)) && (
+              <small style={{ fontSize: "0.75rem", color: "#1e40af", marginTop: "4px" }}>
+                mora: {(parseFloat(porcentaje) - DESCUENTO_MORA * 100).toFixed(2)}%
+              </small>
+            )}
           </div>
         </div>
 
         {valorActual !== undefined && (
           <p style={{ fontSize: "0.83rem", color: "#78350f", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "6px", padding: "8px 10px", marginTop: "0.8rem" }}>
-            {MESES[mes - 1]} {anio} ya tiene <strong>{(valorActual * 100).toFixed(2)}%</strong>.
-            Si guardas, se reemplaza.
+            {MESES[mes - 1]} {anio} ya tiene una usura de{" "}
+            <strong>{(valorActual * 100).toFixed(2)}%</strong>. Si guardas, se reemplaza.
           </p>
         )}
 
@@ -194,13 +202,15 @@ export default function TasasHistoricasPanel({ tasasGuardadas }) {
                 }}
               >
                 {etiqueta(clave)}: <strong>{(tasa * 100).toFixed(2)}%</strong>
+                <span style={{ color: "#64748b" }}> → mora {((tasa - DESCUENTO_MORA) * 100).toFixed(2)}%</span>
               </span>
             );
           })}
         </div>
         <p style={{ fontSize: "0.78rem", color: "#64748b", marginTop: "0.6rem" }}>
-          Los de fondo azul se cargaron desde esta página; los grises vienen de la
-          tabla original del programa.
+          Se muestra la usura certificada y, al lado, la mora que resulta de
+          restarle los {(DESCUENTO_MORA * 100).toFixed(0)} puntos. Los de fondo azul se
+          cargaron desde esta página; los grises vienen de la tabla del programa.
         </p>
       </div>
     </div>
