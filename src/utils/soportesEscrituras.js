@@ -203,30 +203,6 @@ export async function quitarReciboRegistro(escritura) {
   });
 }
 
-/**
- * Días hábiles transcurridos desde una fecha (sin contar sábados ni domingos).
- *
- * Sirve para saber cuánto lleva una escritura en registro: la ORIP se demora
- * unos 15 días hábiles. No descuenta festivos, así que es una guía, no una
- * fecha exacta.
- */
-export function diasHabilesDesde(iso) {
-  if (!iso) return 0;
-  const desde = new Date(iso);
-  if (Number.isNaN(desde.getTime())) return 0;
-
-  const hoy = new Date();
-  let dias = 0;
-  const cursor = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate());
-  const fin = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-
-  while (cursor < fin) {
-    cursor.setDate(cursor.getDate() + 1);
-    const diaSemana = cursor.getDay();
-    if (diaSemana !== 0 && diaSemana !== 6) dias++;
-  }
-  return dias;
-}
-
-/** Días hábiles que suele demorarse la ORIP en sacar una escritura. */
-export const DIAS_HABILES_REGISTRO = 15;
+// El contador de días hábiles y el umbral viven en utils/registro.js, que
+// comparten la web y la APK: así las dos cuentan igual.
+export { diasHabilesDesde, DIAS_HABILES_REGISTRO, estadoEscritura, registroDemorado } from "./registro.js";

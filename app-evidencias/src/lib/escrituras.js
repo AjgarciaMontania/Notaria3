@@ -156,3 +156,68 @@ export function formatoFechaEnvio(iso) {
     year: 'numeric',
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RECIBO DE PAGO DE IMPUESTOS — soporte individual de cada escritura
+//
+// Etapa anterior al envío: se pagaron los impuestos y la ORIP tiene la
+// escritura radicada, unos 15 días hábiles. A diferencia del soporte de envío
+// —que ampara varias escrituras—, este recibo es de una sola.
+//
+// Escribe exactamente los mismos campos que la página web, así que lo que se
+// adjunte desde el celular se ve al instante en el computador y al revés.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CARPETA_RECIBOS = 'recibos-registro';
+
+/** Sube el recibo de una escritura y la marca como pagada / en registro. */
+export async function subirReciboRegistro(archivo, nombreArchivo, escritura) {
+  if (!escritura?.id) throw new Error('Escritura no válida');
+
+  const marca = new Date().toISOString().replace(/[:.]/g, '-');
+  const ruta = `${CARPETA_RECIBOS}/${escritura.id}-${marca}_${nombreSeguro(nombreArchivo)}`;
+
+  const referencia = ref(storage, ruta);
+  await uploadBytes(referencia, archivo, {
+    contentType: archivo.type || 'application/pdf',
+    contentDisposition: 'inline',
+  });
+  const reciboURL = await getDownloadURL(referencia);
+
+  await updateDoc(doc(db, 'escrituras', escritura.id), {
+    enRegistro: true,
+    fechaRegistro: new Date().toISOString(),
+    registradoPor: auth.currentUser?.email || '',
+    reciboNombre: nombreArchivo,
+    reciboURL,
+    reciboPath: ruta,
+  });
+}
+
+/** Quita el recibo y devuelve la escritura a pendiente. */
+export async function quitarReciboRegistro(escritura) {
+  if (escritura.reciboPath) {
+    try {
+      await deleteObject(ref(storage, escritura.reciboPath));
+    } catch (fallo) {
+      // Si el archivo ya no existe, no vale la pena detener el proceso.
+      console.warn('No se pudo borrar el recibo:', fallo);
+    }
+  }
+  await updateDoc(doc(db, 'escrituras', escritura.id), {
+    enRegistro: false,
+    fechaRegistro: '',
+    registradoPor: '',
+    reciboNombre: '',
+    reciboURL: '',
+    reciboPath: '',
+  });
+}
+
+// El contador de días hábiles vive en el archivo compartido con la web.
+export {
+  diasHabilesDesde,
+  DIAS_HABILES_REGISTRO,
+  estadoEscritura,
+  registroDemorado,
+} from '@calculo/registro.js';

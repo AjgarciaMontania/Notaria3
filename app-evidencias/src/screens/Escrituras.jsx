@@ -6,11 +6,16 @@ import {
   revertirEnvio,
   eliminarEscritura,
   formatoFechaEnvio,
+  subirReciboRegistro,
+  quitarReciboRegistro,
+  diasHabilesDesde,
+  DIAS_HABILES_REGISTRO,
 } from '../lib/escrituras.js';
 import { tomarFoto, fotosAPdf, nombreEscaneo } from '../lib/escaner.js';
 
 const FILTROS = [
   { id: 'pendientes', texto: 'Pendientes' },
+  { id: 'registro', texto: 'En registro' },
   { id: 'enviadas', texto: 'Enviadas' },
   { id: 'todas', texto: 'Todas' },
 ];
@@ -29,7 +34,9 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
   const [seleccion, setSeleccion] = useState([]);
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(null); // texto a mostrar mientras sube
-  const [escaneo, setEscaneo] = useState(null);       // { paginas: [] }
+  // { paginas: [], recibo?: escritura }. Si trae "recibo", lo escaneado es el
+  // comprobante de pago de ESA escritura, no el soporte de envío del lote.
+  const [escaneo, setEscaneo] = useState(null);
   const [formulario, setFormulario] = useState(null); // datos de la escritura nueva
   const [guardando, setGuardando] = useState(false);
   const inputArchivo = useRef(null);
@@ -41,7 +48,10 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
   };
 
   const visibles = escrituras.filter((e) =>
-    filtro === 'pendientes' ? !e.enviado : filtro === 'enviadas' ? e.enviado : true
+    filtro === 'pendientes' ? !e.enviado && !e.enRegistro
+      : filtro === 'registro' ? e.enRegistro && !e.enviado
+        : filtro === 'enviadas' ? e.enviado
+          : true
   );
   const pendientes = escrituras.filter((e) => !e.enviado);
 
@@ -73,6 +83,37 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
     }
   };
 
+  // ── Recibo de pago: es de UNA escritura, no del lote ──────────────────────
+  const subirRecibo = async (archivo, nombre, escritura) => {
+    if (enCurso.current) return;
+    enCurso.current = true;
+    setTrabajando(`Subiendo ${nombre}…`);
+    try {
+      await subirReciboRegistro(archivo, nombre, escritura);
+      setEscaneo(null);
+      mostrar('ok', `Escritura ${escritura.numeroEscritura} marcada como pagada y en registro.`);
+    } catch (error) {
+      console.error(error);
+      mostrar('error', `No se pudo adjuntar el recibo: ${error.message}`, 9000);
+    } finally {
+      enCurso.current = false;
+      setTrabajando(null);
+    }
+  };
+
+  const quitarRegistro = async (escritura) => {
+    if (!window.confirm(
+      `¿Quitar el estado "en registro" de la escritura ${escritura.numeroEscritura}?\n\n` +
+      'Se eliminará el recibo y volverá a pendiente.'
+    )) return;
+    try {
+      await quitarReciboRegistro(escritura);
+      mostrar('ok', 'Escritura devuelta a pendiente.');
+    } catch (error) {
+      mostrar('error', `No se pudo quitar: ${error.message}`, 9000);
+    }
+  };
+
   const alElegirPdf = async (e) => {
     const archivo = e.target.files?.[0];
     e.target.value = '';
@@ -83,14 +124,14 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
   const agregarPagina = async (origen) => {
     try {
       const foto = await tomarFoto(origen);
-      setEscaneo((e) => ({ paginas: [...(e?.paginas || []), foto] }));
+      setEscaneo((e) => ({ ...(e || {}), paginas: [...(e?.paginas || []), foto] }));
     } catch (error) {
       if (!/cancel/i.test(error?.message || '')) mostrar('error', 'No se pudo tomar la foto');
     }
   };
 
-  const iniciarEscaneo = async () => {
-    setEscaneo({ paginas: [] });
+  const iniciarEscaneo = async (recibo = null) => {
+    setEscaneo({ paginas: [], recibo });
     await agregarPagina('camara');
   };
 
@@ -100,7 +141,11 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
     setTrabajando('Generando PDF…');
     try {
       const pdf = await fotosAPdf(paginas);
-      await enviarConSoporte(pdf, nombreEscaneo());
+      if (escaneo.recibo) {
+        await subirRecibo(pdf, nombreEscaneo(), escaneo.recibo);
+      } else {
+        await enviarConSoporte(pdf, nombreEscaneo());
+      }
     } catch (error) {
       mostrar('error', `No se pudo generar el PDF: ${error.message}`, 9000);
       setTrabajando(null);
@@ -147,13 +192,17 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
     }
   };
 
-  const abrirSoporte = async (registro) => {
+  /** Abre un documento en el visor del sistema; si falla, en el navegador. */
+  const abrirEnlace = async (url) => {
+    if (!url) return;
     try {
-      await Browser.open({ url: registro.soporteURL, presentationStyle: 'fullscreen' });
+      await Browser.open({ url, presentationStyle: 'fullscreen' });
     } catch {
-      window.open(registro.soporteURL, '_blank');
+      window.open(url, '_blank');
     }
   };
+
+  const abrirSoporte = (registro) => abrirEnlace(registro.soporteURL);
 
   // ── Guardar escritura nueva ───────────────────────────────────────────────
   const guardarNueva = async (e) => {
@@ -179,7 +228,7 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
             ‹ Cancelar
           </button>
           <div className="barra-centro">
-            <h1>Escanear soporte</h1>
+            <h1>{escaneo.recibo ? 'Escanear recibo' : 'Escanear soporte'}</h1>
             <span className="barra-sub">
               {escaneo.paginas.length}{' '}
               {escaneo.paginas.length === 1 ? 'página' : 'páginas'}
@@ -227,7 +276,10 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
             onClick={guardarEscaneo}
             disabled={!escaneo.paginas.length || Boolean(trabajando)}
           >
-            {trabajando || `Adjuntar a ${seleccion.length} y marcar enviadas`}
+            {trabajando ||
+              (escaneo.recibo
+                ? `Guardar recibo de la escritura ${escaneo.recibo.numeroEscritura}`
+                : `Adjuntar a ${seleccion.length} y marcar enviadas`)}
           </button>
         </main>
       </div>
@@ -342,7 +394,11 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
           <ul className="lista">
             {visibles.map((e) => (
               <li key={e.id}>
-                <div className={`tarjeta-escritura${e.enviado ? ' enviada' : ''}`}>
+                <div
+                  className={`tarjeta-escritura${
+                    e.enviado ? ' enviada' : e.enRegistro ? ' en-registro' : ''
+                  }`}
+                >
                   <div className="escritura-cabecera">
                     {!e.enviado && (
                       <input
@@ -365,6 +421,39 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
                   </div>
 
                   {e.motivo && <p className="escritura-motivo">{e.motivo}</p>}
+
+                  {/* Pagada y en registro: la etapa previa al envío */}
+                  {e.enRegistro ? (
+                    <div className="escritura-registro">
+                      <span>
+                        🧾 Pagada el {formatoFechaEnvio(e.fechaRegistro)}
+                        {!e.enviado && (() => {
+                          const dias = diasHabilesDesde(e.fechaRegistro);
+                          return dias > DIAS_HABILES_REGISTRO
+                            ? ` · ⚠ ${dias} días hábiles`
+                            : ` · ${dias} de ${DIAS_HABILES_REGISTRO} días`;
+                        })()}
+                      </span>
+                      <div className="fila-botones">
+                        {e.reciboURL && (
+                          <button className="boton gris" onClick={() => abrirEnlace(e.reciboURL)}>
+                            📎 Ver recibo
+                          </button>
+                        )}
+                        {!e.enviado && (
+                          <button className="boton fantasma peligro" onClick={() => quitarRegistro(e)}>
+                            Quitar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    !e.enviado && (
+                      <button className="registrar-escritura" onClick={() => iniciarEscaneo(e)}>
+                        🧾 Adjuntar recibo de pago
+                      </button>
+                    )
+                  )}
 
                   {!e.enviado && (
                     <button className="borrar-escritura" onClick={() => borrar(e)}>

@@ -1138,3 +1138,43 @@ input:focus {
   padding-top: 8px;
   border-top: 1px solid var(--borde);
 }
+
+/* ── Escritura pagada y en registro ──────────────────────────────────────────
+   Etapa anterior al envío: impuestos pagados y documento radicado en la ORIP,
+   que suele demorarse unos 15 días hábiles. Amarillo sobrio, del mismo tono
+   que los avisos, con una franja a la izquierda para reconocerla al deslizar. */
+.tarjeta-escritura.en-registro {
+  background: #fef9e7;
+  border-color: #e6c66a;
+  border-left: 4px solid #d4a017;
+}
+
+.escritura-registro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e6c66a;
+  font-size: 0.85rem;
+  color: #854d0e;
+  font-weight: 600;
+}
+
+.registrar-escritura {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px;
+  background: #fef9e7;
+  color: #854d0e;
+  border: 1px dashed #d4a017;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.registrar-escritura:active {
+  background: #fdf3d0;
+}
