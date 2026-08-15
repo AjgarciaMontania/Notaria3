@@ -44,6 +44,24 @@ service firebase.storage {
             && (rolDeLaFicha() == 'admin' || rolDeLaFicha() == 'personal'));
     }
 
+    // Permiso para RECORRER las carpetas de evidencias.
+    //
+    // Firebase autoriza el listado de una ruta con la regla que cubre lo que
+    // está UN NIVEL MÁS ABAJO. Para "recibos-registro" y "soportes-escrituras"
+    // eso es {archivo}, y sus reglas ya lo cubrían. Pero en "evidencias" lo que
+    // hay un nivel más abajo son carpetas, y no existía ninguna regla para
+    // ellas: por eso listar "evidencias" daba storage/unauthorized.
+    //
+    // La página web nunca lo notó porque no le pregunta a Storage qué
+    // documentos hay: se guía por la colección "files" de Firestore. Salió a la
+    // luz con el respaldo, que sí tiene que recorrer el bucket de verdad.
+    //
+    // Se concede "list" y no "read": deja recorrer las carpetas, sin abrir
+    // ningún documento. Los documentos se leen con la regla de abajo.
+    match /evidencias/{carpeta} {
+      allow list: if puedeOperar();
+    }
+
     match /evidencias/{carpeta}/{archivo} {
 
       allow read: if puedeOperar();
