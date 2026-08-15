@@ -50,6 +50,14 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
 
+      # El motor de cálculo lo comparten la web y la APK: se prueba antes de
+      # compilar, para no publicar un APK con la matemática rota.
+      - name: Probar el motor de liquidación
+        run: |
+          cd ..
+          npm ci
+          npm test
+
       - name: Instalar dependencias
         run: npm ci
 

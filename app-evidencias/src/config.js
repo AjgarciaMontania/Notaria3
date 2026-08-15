@@ -6,12 +6,9 @@
 // console.firebase.google.com → Authentication → Users.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Minutos de inactividad tras los cuales la app cierra la sesión.
-//
-// Se cuentan de verdad: la hora de la última actividad queda guardada en el
-// teléfono, así que el plazo sigue corriendo aunque la app esté cerrada o se
-// instale una actualización encima. Ver lib/inactividad.js.
-export const MINUTOS_INACTIVIDAD = 10;
+// El plazo de inactividad vive en utils/configuracion.js, compartido con la
+// página web, para que los dos cierren la sesión a los mismos minutos.
+export { MINUTOS_INACTIVIDAD } from '@calculo/configuracion.js';
 
 // Versión que se muestra en la pantalla de acceso, para saber de un vistazo
 // qué APK tiene instalada cada celular. Debe coincidir con versionName en

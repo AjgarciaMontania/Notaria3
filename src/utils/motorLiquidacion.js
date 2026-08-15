@@ -59,12 +59,30 @@ export function diasEntre(desde, hasta) {
 }
 
 /**
- * Vencimiento del plazo legal: exactamente 2 meses calendario después del
- * otorgamiento (Art. 8 Ley 1579/2012).
+ * Vencimiento del plazo legal: 2 meses calendario después del otorgamiento
+ * (Art. 8 Ley 1579/2012).
+ *
+ * OJO CON EL ÚLTIMO DÍA DEL MES. JavaScript, si le pide "31 de febrero", se
+ * pasa solo al 3 de marzo. Eso daba vencimientos posteriores a los reales y
+ * cobraba menos mora de la debida en toda escritura otorgada un 29, 30 o 31.
+ *
+ * El Código Civil colombiano (art. 67) resuelve el caso expresamente: si el mes
+ * en que termina el plazo tiene menos días que aquel en que empezó, el plazo
+ * vence el ÚLTIMO DÍA de ese mes. Una escritura del 31 de diciembre vence el
+ * 28 de febrero, no el 3 de marzo.
  */
 export function fechaVencimiento(fechaEscritura) {
   const d = new Date(fechaEscritura + "T12:00:00");
+  const diaOriginal = d.getDate();
+
+  // Se avanza desde el día 1 para que el mes no se desborde…
+  d.setDate(1);
   d.setMonth(d.getMonth() + 2);
+
+  // …y luego se recorta al último día si el mes destino es más corto.
+  const ultimoDelMes = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(diaOriginal, ultimoDelMes));
+
   return d.toISOString().split("T")[0];
 }
 

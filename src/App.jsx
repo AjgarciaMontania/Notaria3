@@ -14,6 +14,7 @@ import { useRol } from "./hooks/useRol";
 import UsuariosPanel from "./components/UsuariosPanel";
 import TarifasPanel from "./components/TarifasPanel";
 import { useTarifas } from "./hooks/useTarifas";
+import { MINUTOS_INACTIVIDAD } from "./utils/configuracion.js";
 import { puedeOperar, puedeAdministrarUsuarios, ETIQUETAS_ROL, ROL_POR_DEFECTO } from "./utils/roles.js";
 
 import icontecLogo from './assets/icontec-iso9001.png';
@@ -26,7 +27,8 @@ import { formatNumberWithPoints } from "./utils/formatters";
 import "./index.css";
 
 const TODAY = new Date().toISOString().split("T")[0];
-const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos
+// El plazo vive en utils/configuracion.js, compartido con la APK.
+const INACTIVITY_TIMEOUT_MS = MINUTOS_INACTIVIDAD * 60 * 1000;
 
 const COUNTS_INITIAL = {
   compraventa: "",
@@ -265,7 +267,7 @@ function App() {
 
           {sessionExpired && (
             <div style={{ background: "#fef3c7", border: "1px solid #d97706", borderRadius: "8px", padding: "10px 14px", marginBottom: "1rem", color: "#92400e", fontSize: "0.9rem" }}>
-              ⏱ Sesión cerrada automáticamente por inactividad (5 min).
+              ⏱ Sesión cerrada automáticamente por inactividad ({MINUTOS_INACTIVIDAD} min).
             </div>
           )}
 
@@ -315,7 +317,7 @@ function App() {
           <p style={{ textAlign: "center", marginTop: "1rem", color: "#6b7280", fontSize: "0.85rem" }}>
             Cada persona usa su propia cuenta: puede ser un nombre de usuario
             (por ejemplo AlvaroArias) o un correo. La sesión se cierra sola tras
-            5 minutos de inactividad y al cerrar el navegador.
+            {MINUTOS_INACTIVIDAD} minutos de inactividad y al cerrar el navegador.
           </p>
         </form>
       )}
@@ -353,7 +355,7 @@ function App() {
       {isProtectedTab && isAdmin && (
         <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", maxWidth: "1380px", margin: "0 auto 0.5rem", padding: "0 1rem", gap: "0.75rem" }}>
           <span style={{ color: "#166534", fontSize: "0.9rem", fontWeight: "bold" }}>
-            ✅ {usuario?.email} · Cierre automático por inactividad en 5 min
+            ✅ {usuario?.email} · Cierre automático por inactividad en {MINUTOS_INACTIVIDAD} min
           </span>
           <button
             onClick={handleAdminLogout}

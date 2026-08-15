@@ -33,6 +33,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Las pruebas comparan el cálculo contra recibos reales. Si algo del motor
+      # se rompe, la publicación se detiene aquí en vez de salir a producción.
+      - name: Probar el motor de liquidación
+        run: npm test
+
       - name: Build
         run: npm run build
 

@@ -1,23 +1,8 @@
 // src/utils/actosConfig.js
 
-/**
- * Tarifa mínima del impuesto de registro para actos SIN CUANTÍA.
- *
- * La Gobernación del Caquetá no cobra $0 por un acto sin cuantía: aplica una
- * tarifa mínima fija asociada al código del acto. Confirmado con recibos de
- * Hacienda y verificado de nuevo con la escritura 077 del 03/06/2026
- * (compraventa $64.000.000 + cancelación de patrimonio de familia):
- *
- *   tributaria compraventa 1% ......  $640.000
- *   tarifa mínima sin cuantía .......  $233.500
- *   base ............................  $873.500
- *   mora 9 días al 29,66% ...........    $6.000
- *   TOTAL ...........................  $879.500  ← exactamente lo liquidado
- *
- * Si la Gobernación actualiza este valor, cámbialo aquí y se aplica a todos
- * los actos sin cuantía a la vez.
- */
-export const TARIFA_MINIMA_SIN_CUANTIA = 233500;
+// La tarifa mínima de los actos sin cuantía ya no se escribe aquí: vive en
+// tarifasConfig.js y se administra desde el panel "Tarifas" de la página web.
+// Los actos que la cobran se marcan con la bandera `tributariaMinima: true`.
 
 // ⚠️ Los IMPORTES en pesos ya no se escriben aquí: viven en tarifasConfig.js y
 // se administran desde el panel "Tarifas" de la página web. En este archivo
