@@ -6,6 +6,7 @@
 import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage, auth } from "../firebase";
+import { desdeFechaLocal } from "./registro.js";
 
 const CARPETA = "soportes-escrituras";
 
@@ -188,11 +189,20 @@ const CARPETA_RECIBOS = "recibos-registro";
  * @param {File} archivo    recibo escaneado o fotografiado
  * @param {Object} escritura documento de Firestore
  */
-export async function subirReciboRegistro(archivo, escritura) {
+export async function subirReciboRegistro(archivo, escritura, fechaPago = "") {
   if (!archivo) throw new Error("No se eligió ningún archivo.");
   if (archivo.size > 50 * 1024 * 1024) {
     throw new Error("El archivo pesa más de 50 MB.");
   }
+
+  // La fecha que cuenta es la del PAGO, no la del día en que se adjunta el
+  // recibo. De ella arranca el contador de los 15 días hábiles de la ORIP:
+  // si se pagó el martes y el recibo se sube el lunes siguiente, esos días ya
+  // corrieron y la escritura lleva más tiempo esperando de lo que parece.
+  const fechaRegistro = fechaPago
+    ? desdeFechaLocal(fechaPago)
+    : new Date().toISOString();
+  if (!fechaRegistro) throw new Error("La fecha del pago no es válida.");
 
   const limpio = archivo.name.replace(/[^\w.\-]+/g, "_");
   const ruta = `${CARPETA_RECIBOS}/${escritura.id}-${Date.now()}-${limpio}`;
@@ -207,12 +217,28 @@ export async function subirReciboRegistro(archivo, escritura) {
 
   await updateDoc(doc(db, "escrituras", escritura.id), {
     enRegistro: true,
-    fechaRegistro: new Date().toISOString(),
+    fechaRegistro,
     registradoPor: auth.currentUser?.email || "",
     reciboNombre: archivo.name,
     reciboURL,
     reciboPath: ruta,
   });
+}
+
+/**
+ * Corrige la fecha de pago de una escritura que ya está en registro.
+ *
+ * No toca el archivo: sirve para cuando el recibo se adjuntó con la fecha del
+ * día y en realidad el pago fue antes. Al cambiarla, el contador de días
+ * hábiles se recalcula solo.
+ *
+ * @param {Object} escritura documento de Firestore
+ * @param {string} fecha     "AAAA-MM-DD"
+ */
+export async function actualizarFechaRegistro(escritura, fecha) {
+  const iso = desdeFechaLocal(fecha);
+  if (!iso) throw new Error("La fecha no es válida.");
+  await updateDoc(doc(db, "escrituras", escritura.id), { fechaRegistro: iso });
 }
 
 /** Quita el recibo y devuelve la escritura al estado pendiente. */
@@ -237,4 +263,12 @@ export async function quitarReciboRegistro(escritura) {
 
 // El contador de días hábiles y el umbral viven en utils/registro.js, que
 // comparten la web y la APK: así las dos cuentan igual.
-export { diasHabilesDesde, DIAS_HABILES_REGISTRO, estadoEscritura, registroDemorado } from "./registro.js";
+export {
+  diasHabilesDesde,
+  DIAS_HABILES_REGISTRO,
+  estadoEscritura,
+  registroDemorado,
+  aFechaLocal,
+  desdeFechaLocal,
+  hoyLocal,
+} from "./registro.js";

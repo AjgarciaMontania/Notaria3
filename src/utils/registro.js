@@ -16,6 +16,42 @@
 /** Días hábiles que suele demorarse la ORIP en sacar una escritura. */
 export const DIAS_HABILES_REGISTRO = 15;
 
+// ── FECHAS ───────────────────────────────────────────────────────────────────
+// Las fechas se guardan en formato ISO completo, pero los campos de fecha de la
+// pantalla trabajan con "AAAA-MM-DD". Estas dos funciones traducen entre lo uno
+// y lo otro sin que la fecha se corra de día.
+
+/** Pasa una fecha guardada a "AAAA-MM-DD", que es lo que lee un campo de fecha. */
+export function aFechaLocal(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mes}-${dia}`;
+}
+
+/**
+ * Pasa un "AAAA-MM-DD" a la fecha ISO que se guarda.
+ *
+ * ⚠️ SE FIJA EL MEDIODÍA A PROPÓSITO. new Date("2026-08-10") se entiende como
+ * medianoche en Londres, que en Colombia (UTC−5) es el 9 de agosto a las 7 de
+ * la noche: la fecha se correría UN DÍA HACIA ATRÁS y el contador de días
+ * hábiles empezaría antes de tiempo, avisando de demoras que no existen.
+ * Al mediodía no hay huso horario que la mueva de día.
+ */
+export function desdeFechaLocal(ymd) {
+  if (!ymd) return "";
+  const d = new Date(`${ymd}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString();
+}
+
+/** El día de hoy en "AAAA-MM-DD", para dejarlo puesto en los campos de fecha. */
+export function hoyLocal(ahora = new Date()) {
+  return aFechaLocal(ahora.toISOString());
+}
+
 /**
  * Días hábiles transcurridos desde una fecha, sin contar sábados ni domingos.
  *

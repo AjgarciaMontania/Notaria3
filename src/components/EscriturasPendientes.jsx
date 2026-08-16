@@ -9,9 +9,13 @@ import {
   formatoFechaEnvio,
   subirReciboRegistro,
   quitarReciboRegistro,
+  actualizarFechaRegistro,
   borrarArchivos,
   diasHabilesDesde,
   DIAS_HABILES_REGISTRO,
+  estadoEscritura,
+  aFechaLocal,
+  hoyLocal,
 } from "../utils/soportesEscrituras";
 import { archivosHuerfanos } from "../utils/limpiezaArchivos";
 
@@ -47,6 +51,9 @@ export default function EscriturasPendientes({ isAdmin }) {
   // seleccionan las filas y después se adjunta un único archivo para todas.
   const [seleccion, setSeleccion] = useState([]);   // ids de escrituras marcadas
   const [subiendo, setSubiendo] = useState(false);
+  const [filtro, setFiltro] = useState("todas");
+  const [reciboPara, setReciboPara] = useState(null);   // { id, fecha } fila que está adjuntando
+  const [editandoFecha, setEditandoFecha] = useState(null); // { id, fecha } fila corrigiendo la fecha
   const [aviso, setAviso] = useState(null);
 
   const mostrarAviso = (tipo, texto, ms = 5000) => {
@@ -60,7 +67,36 @@ export default function EscriturasPendientes({ isAdmin }) {
     );
   };
 
-  const pendientes = escrituras.filter((e) => !e.enviado);
+  // ── Filtros por estado ────────────────────────────────────────────────────
+  // Los mismos cuatro del celular, para que quien use las dos no tenga que
+  // aprender dos formas distintas de mirar la misma lista.
+  const FILTROS = [
+    { id: "todas", texto: "Todas", estado: null },
+    { id: "pendientes", texto: "Pendientes", estado: "pendiente" },
+    { id: "registro", texto: "En registro", estado: "en-registro" },
+    { id: "enviadas", texto: "Enviadas", estado: "enviada" },
+  ];
+
+  const visibles = filtro === "todas"
+    ? escrituras
+    : escrituras.filter((e) => estadoEscritura(e) === FILTROS.find((f) => f.id === filtro)?.estado);
+
+  // Los conteos se sacan SIEMPRE de la lista completa: son para decidir a
+  // dónde ir, así que tienen que verse aunque estés parado en otro filtro.
+  const conteos = escrituras.reduce(
+    (cuenta, e) => {
+      cuenta[estadoEscritura(e)]++;
+      cuenta.todas++;
+      return cuenta;
+    },
+    { todas: 0, pendiente: 0, "en-registro": 0, enviada: 0 }
+  );
+  const cuantas = (f) => (f.estado ? conteos[f.estado] : conteos.todas);
+
+  // "Marcar todas" trabaja sobre lo que se está viendo. Si marcara también las
+  // filas escondidas por el filtro, se enviarían escrituras que no estás
+  // mirando.
+  const pendientes = visibles.filter((e) => !e.enviado);
   const todasPendientesMarcadas =
     pendientes.length > 0 && pendientes.every((e) => seleccion.includes(e.id));
 
@@ -98,20 +134,39 @@ export default function EscriturasPendientes({ isAdmin }) {
   // UNA sola escritura, así que se adjunta fila por fila.
   const [subiendoRecibo, setSubiendoRecibo] = useState(null); // id de la fila
 
+  // La fecha que se guarda es la del PAGO, no la del día en que se sube el
+  // recibo. Los impuestos suelen pagarse días antes de que alguien se siente a
+  // adjuntar los soportes, y de esa fecha arranca el contador de los 15 días
+  // hábiles de la ORIP. Si se pusiera la de hoy, una escritura que ya lleva una
+  // semana esperando aparecería como recién radicada.
   const adjuntarRecibo = (registro) => async (e) => {
     const archivo = e.target.files?.[0];
     e.target.value = "";
     if (!archivo) return;
 
+    const fecha = reciboPara?.id === registro.id ? reciboPara.fecha : hoyLocal();
     setSubiendoRecibo(registro.id);
     try {
-      await subirReciboRegistro(archivo, registro);
-      mostrarAviso("ok", `Escritura ${registro.numeroEscritura} marcada como pagada y en registro.`);
+      await subirReciboRegistro(archivo, registro, fecha);
+      setReciboPara(null);
+      mostrarAviso("ok", `Escritura ${registro.numeroEscritura} marcada como pagada el ${formatoFechaEnvio(fecha + "T12:00:00")}.`);
     } catch (error) {
       console.error(error);
       mostrarAviso("error", `No se pudo adjuntar el recibo: ${error.message}`, 9000);
     } finally {
       setSubiendoRecibo(null);
+    }
+  };
+
+  /** Corrige la fecha de pago de una escritura que ya está en registro. */
+  const guardarFechaRegistro = async (registro, fecha) => {
+    setEditandoFecha(null);
+    if (!fecha || fecha === aFechaLocal(registro.fechaRegistro)) return;
+    try {
+      await actualizarFechaRegistro(registro, fecha);
+      mostrarAviso("ok", `Fecha de pago de la escritura ${registro.numeroEscritura} corregida.`);
+    } catch (error) {
+      mostrarAviso("error", `No se pudo cambiar la fecha: ${error.message}`, 9000);
     }
   };
 
@@ -255,9 +310,10 @@ export default function EscriturasPendientes({ isAdmin }) {
   };
 
   const exportToExcel = () => {
-    // El ITEM del Excel es la misma posición que se ve en pantalla, para que
-    // la hoja que se manda a Florencia coincida con lo que hay en la tabla.
-    const data = escrituras.map((r, posicion) => ({
+    // Se exporta LO QUE SE ESTÁ VIENDO, con el filtro puesto: así se puede
+    // mandar a Florencia justo el grupo que interesa sin borrar filas a mano.
+    // El ITEM del Excel es la misma posición que se ve en pantalla.
+    const data = visibles.map((r, posicion) => ({
       ITEM: posicion + 1,
       ACTO: r.acto,
       "NUMERO ESCRITURA": r.numeroEscritura,
@@ -279,7 +335,10 @@ export default function EscriturasPendientes({ isAdmin }) {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Escrituras Pendientes");
-    XLSX.writeFile(wb, `RELACION_ESCRITURAS_PENDIENTES_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    // El filtro va en el nombre del archivo para no confundir dos descargas
+    // del mismo día con contenidos distintos.
+    const marca = filtro === "todas" ? "" : `_${FILTROS.find((f) => f.id === filtro)?.texto.toUpperCase().replace(/ /g, "_")}`;
+    XLSX.writeFile(wb, `RELACION_ESCRITURAS_PENDIENTES${marca}_${hoyLocal()}.xlsx`);
   };
 
   const handleImportExcel = (e) => {
@@ -420,10 +479,56 @@ export default function EscriturasPendientes({ isAdmin }) {
         </div>
       )}
 
+      {/* FILTROS POR ESTADO */}
+      {escrituras.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", margin: "1.2rem 0 0.6rem" }}>
+          {FILTROS.map((f) => {
+            const activo = filtro === f.id;
+            const total = cuantas(f);
+            return (
+              <button
+                key={f.id}
+                onClick={() => { setFiltro(f.id); setSeleccion([]); }}
+                title={`Ver solo las escrituras en estado "${f.texto}"`}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: "7px",
+                  padding: "7px 14px", borderRadius: "999px", cursor: "pointer",
+                  fontSize: "0.86rem", fontWeight: activo ? 700 : 500,
+                  fontFamily: "inherit",
+                  background: activo ? "#166534" : "white",
+                  color: activo ? "white" : "#334155",
+                  border: `1px solid ${activo ? "#166534" : "#cbd5e1"}`,
+                }}
+              >
+                {f.texto}
+                <span style={{
+                  padding: "1px 8px", borderRadius: "999px", fontSize: "0.8rem", fontWeight: 700,
+                  background: activo ? "rgba(255,255,255,0.22)" : "#f1f5f9",
+                  color: activo ? "white" : "#475569",
+                }}>
+                  {total}
+                </span>
+              </button>
+            );
+          })}
+          {filtro !== "todas" && (
+            <span style={{ fontSize: "0.83rem", color: "#64748b" }}>
+              Mostrando {visibles.length} de {escrituras.length}. El Excel exporta solo estas.
+            </span>
+          )}
+        </div>
+      )}
+
       {/* TABLA DE REGISTROS */}
       {escrituras.length > 0 && (
         <p className="scroll-hint compacta">← Desliza la tabla hacia los lados para ver todas las columnas →</p>
       )}
+      {escrituras.length > 0 && visibles.length === 0 && (
+        <p style={{ padding: "1.2rem", background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "10px", color: "#64748b", textAlign: "center" }}>
+          No hay escrituras en «{FILTROS.find((f) => f.id === filtro)?.texto}».
+        </p>
+      )}
+
       <div className="table-scroll compacta">
       {/* Anchos mínimos en píxeles definidos en index.css (.tabla-escrituras) */}
       <table className="tabla-compacta tabla-escrituras" style={{ width: "100%", borderCollapse: "collapse", background: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
@@ -458,7 +563,7 @@ export default function EscriturasPendientes({ isAdmin }) {
           </tr>
         </thead>
         <tbody>
-          {escrituras.map((r, posicion) => (
+          {visibles.map((r, posicion) => (
             <tr
               key={r.id}
               // El verde (enviada) manda sobre el amarillo (en registro):
@@ -477,9 +582,35 @@ export default function EscriturasPendientes({ isAdmin }) {
                 {r.enRegistro ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "3px" }}>
                     <strong style={{ color: "#854d0e", fontSize: "0.8rem" }}>🧾 Pagada</strong>
-                    <small style={{ color: "#854d0e", fontSize: "0.71rem" }}>
-                      {formatoFechaEnvio(r.fechaRegistro)}
-                    </small>
+                    {/* La fecha se puede corregir sin volver a subir el recibo:
+                        al adjuntarlo tarde es fácil dejar la del día. */}
+                    {editandoFecha?.id === r.id ? (
+                      <input
+                        type="date"
+                        autoFocus
+                        value={editandoFecha.fecha}
+                        max={hoyLocal()}
+                        onChange={(ev) => setEditandoFecha({ id: r.id, fecha: ev.target.value })}
+                        onBlur={() => guardarFechaRegistro(r, editandoFecha.fecha)}
+                        onKeyDown={(ev) => {
+                          if (ev.key === "Enter") guardarFechaRegistro(r, editandoFecha.fecha);
+                          if (ev.key === "Escape") setEditandoFecha(null);
+                        }}
+                        style={{ fontSize: "0.72rem", padding: "2px 4px", border: "1px solid #a16207", borderRadius: "5px" }}
+                      />
+                    ) : isAdmin ? (
+                      <button
+                        onClick={() => setEditandoFecha({ id: r.id, fecha: aFechaLocal(r.fechaRegistro) })}
+                        title="Cambiar la fecha del pago de impuestos"
+                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#854d0e", fontSize: "0.71rem", fontFamily: "inherit", textDecoration: "underline dotted" }}
+                      >
+                        {formatoFechaEnvio(r.fechaRegistro)} ✎
+                      </button>
+                    ) : (
+                      <small style={{ color: "#854d0e", fontSize: "0.71rem" }}>
+                        {formatoFechaEnvio(r.fechaRegistro)}
+                      </small>
+                    )}
                     {/* El contador solo tiene sentido mientras la escritura
                         siga en registro. Si ya se envió, salió de la ORIP y
                         avisar de una demora sería engañoso. */}
@@ -517,19 +648,49 @@ export default function EscriturasPendientes({ isAdmin }) {
                     )}
                   </div>
                 ) : isAdmin ? (
-                  <label
-                    title="Adjunta el recibo de pago de impuestos de esta escritura"
-                    style={{ display: "inline-flex", alignItems: "center", gap: "5px", cursor: subiendoRecibo ? "wait" : "pointer", fontSize: "0.77rem", color: "#a16207", fontWeight: 600, margin: 0 }}
-                  >
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      onChange={adjuntarRecibo(r)}
-                      disabled={Boolean(subiendoRecibo)}
-                      style={{ display: "none" }}
-                    />
-                    {subiendoRecibo === r.id ? "Subiendo…" : "🧾 Adjuntar recibo"}
-                  </label>
+                  reciboPara?.id === r.id ? (
+                    /* Se pregunta la fecha ANTES de elegir el archivo: es el
+                       único momento en que quien adjunta se acuerda de cuándo
+                       se pagó de verdad. */
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                      <small style={{ color: "#a16207", fontSize: "0.7rem" }}>Fecha del pago</small>
+                      <input
+                        type="date"
+                        autoFocus
+                        value={reciboPara.fecha}
+                        max={hoyLocal()}
+                        onChange={(ev) => setReciboPara({ id: r.id, fecha: ev.target.value })}
+                        style={{ fontSize: "0.73rem", padding: "2px 4px", border: "1px solid #a16207", borderRadius: "5px" }}
+                      />
+                      <label
+                        title="Elegir el recibo escaneado o la foto"
+                        style={{ display: "inline-flex", alignItems: "center", gap: "5px", cursor: reciboPara.fecha ? "pointer" : "not-allowed", fontSize: "0.75rem", color: "#a16207", fontWeight: 700, margin: 0, opacity: reciboPara.fecha ? 1 : 0.5 }}
+                      >
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          onChange={adjuntarRecibo(r)}
+                          disabled={Boolean(subiendoRecibo) || !reciboPara.fecha}
+                          style={{ display: "none" }}
+                        />
+                        {subiendoRecibo === r.id ? "Subiendo…" : "📎 Elegir archivo"}
+                      </label>
+                      <button
+                        onClick={() => setReciboPara(null)}
+                        style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: "0.7rem", textDecoration: "underline", padding: 0 }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setReciboPara({ id: r.id, fecha: hoyLocal() })}
+                      title="Adjunta el recibo de pago de impuestos de esta escritura"
+                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.77rem", color: "#a16207", fontWeight: 600, fontFamily: "inherit", padding: 0 }}
+                    >
+                      🧾 Adjuntar recibo
+                    </button>
+                  )
                 ) : (
                   <span style={{ color: "#9ca3af", fontSize: "0.8rem" }}>—</span>
                 )}
