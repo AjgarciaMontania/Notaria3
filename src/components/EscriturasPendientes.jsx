@@ -52,6 +52,7 @@ export default function EscriturasPendientes({ isAdmin }) {
   const [seleccion, setSeleccion] = useState([]);   // ids de escrituras marcadas
   const [subiendo, setSubiendo] = useState(false);
   const [filtro, setFiltro] = useState("todas");
+  const [orden, setOrden] = useState("asc");   // "asc" = la más antigua primero
   const [reciboPara, setReciboPara] = useState(null);   // { id, fecha } fila que está adjuntando
   const [editandoFecha, setEditandoFecha] = useState(null); // { id, fecha } fila corrigiendo la fecha
   const [aviso, setAviso] = useState(null);
@@ -77,9 +78,34 @@ export default function EscriturasPendientes({ isAdmin }) {
     { id: "enviadas", texto: "Enviadas", estado: "enviada" },
   ];
 
-  const visibles = filtro === "todas"
+  // Solo "En registro" y "Enviadas" se pueden ordenar por fecha: son los dos
+  // estados que tienen una. "Todas" y "Pendientes" conservan el orden de
+  // captura de siempre.
+  const CAMPO_FECHA = { registro: "fechaRegistro", enviadas: "fechaEnvio" };
+  const campoOrden = CAMPO_FECHA[filtro] || null;
+
+  const filtradas = filtro === "todas"
     ? escrituras
     : escrituras.filter((e) => estadoEscritura(e) === FILTROS.find((f) => f.id === filtro)?.estado);
+
+  // De la más antigua a la más reciente: en registro, la primera de la lista es
+  // la que lleva más tiempo esperando en la ORIP, o sea la próxima en salir.
+  //
+  // Se ordena sobre una COPIA. sort() reordena el arreglo original, y el
+  // original aquí es el estado de React: revolverlo haría que la tabla y los
+  // datos dejaran de coincidir.
+  const visibles = campoOrden
+    ? [...filtradas].sort((a, b) => {
+        const ta = Date.parse(a[campoOrden]);
+        const tb = Date.parse(b[campoOrden]);
+        // Una fila sin fecha no se puede comparar: se manda al final, mire
+        // como mire el orden, para que no se cuele de primera.
+        if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+        if (Number.isNaN(ta)) return 1;
+        if (Number.isNaN(tb)) return -1;
+        return orden === "asc" ? ta - tb : tb - ta;
+      })
+    : filtradas;
 
   // Los conteos se sacan SIEMPRE de la lista completa: son para decidir a
   // dónde ir, así que tienen que verse aunque estés parado en otro filtro.
@@ -309,6 +335,35 @@ export default function EscriturasPendientes({ isAdmin }) {
     }
   };
 
+  /**
+   * Encabezado que se puede pulsar para dar vuelta al orden por fecha.
+   *
+   * Es una función corriente que devuelve JSX, no un componente: declarar un
+   * componente dentro de otro lo vuelve a crear en cada dibujado y React le
+   * borra el estado cada vez.
+   */
+  const encabezadoOrdenable = (texto, activo) =>
+    activo ? (
+      <button
+        onClick={() => setOrden((previo) => (previo === "asc" ? "desc" : "asc"))}
+        title={
+          orden === "asc"
+            ? "Ahora: la más antigua primero. Pulsa para invertir."
+            : "Ahora: la más reciente primero. Pulsa para invertir."
+        }
+        style={{
+          background: "none", border: "none", color: "white", cursor: "pointer",
+          font: "inherit", textTransform: "uppercase", padding: 0,
+          display: "inline-flex", alignItems: "center", gap: "4px",
+        }}
+      >
+        {texto}
+        <span style={{ fontSize: "0.95rem", lineHeight: 1 }}>{orden === "asc" ? "↑" : "↓"}</span>
+      </button>
+    ) : (
+      texto
+    );
+
   const exportToExcel = () => {
     // Se exporta LO QUE SE ESTÁ VIENDO, con el filtro puesto: así se puede
     // mandar a Florencia justo el grupo que interesa sin borrar filas a mano.
@@ -488,7 +543,7 @@ export default function EscriturasPendientes({ isAdmin }) {
             return (
               <button
                 key={f.id}
-                onClick={() => { setFiltro(f.id); setSeleccion([]); }}
+                onClick={() => { setFiltro(f.id); setOrden("asc"); setSeleccion([]); }}
                 title={`Ver solo las escrituras en estado "${f.texto}"`}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: "7px",
@@ -514,6 +569,11 @@ export default function EscriturasPendientes({ isAdmin }) {
           {filtro !== "todas" && (
             <span style={{ fontSize: "0.83rem", color: "#64748b" }}>
               Mostrando {visibles.length} de {escrituras.length}. El Excel exporta solo estas.
+              {campoOrden && (
+                orden === "asc"
+                  ? " Ordenadas de la más antigua a la más reciente."
+                  : " Ordenadas de la más reciente a la más antigua."
+              )}
             </span>
           )}
         </div>
@@ -534,16 +594,19 @@ export default function EscriturasPendientes({ isAdmin }) {
       <table className="tabla-compacta tabla-escrituras" style={{ width: "100%", borderCollapse: "collapse", background: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>
         <thead>
           <tr style={{ background: "#166534", color: "white", textTransform: "uppercase" }}>
-            <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>ITEM</th>
+            {/* Sin partir la palabra: la columna es estrecha y "ITEM" quedaba cortado en dos renglones. */}
+            <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "nowrap", fontSize: "0.85rem" }}>ITEM</th>
             <th className="celda-texto" style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>ACTO</th>
             <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>N° ESCRITURA</th>
             <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>FECHA</th>
             <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>MATRÍCULA</th>
             <th style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>NOTA DEVOLUTIVA</th>
             <th className="celda-texto" style={{ padding: "12px 10px", textAlign: "left", whiteSpace: "normal", wordBreak: "break-word", fontSize: "0.85rem" }}>MOTIVO</th>
-            <th style={{ padding: "12px 10px", textAlign: "center", fontSize: "0.85rem" }} title="Impuestos pagados y escritura radicada en la ORIP">REGISTRO</th>
+            <th style={{ padding: "12px 10px", textAlign: "center", fontSize: "0.85rem" }} title="Impuestos pagados y escritura radicada en la ORIP">
+              {encabezadoOrdenable("REGISTRO", filtro === "registro")}
+            </th>
             <th style={{ padding: "12px 10px", textAlign: "center", fontSize: "0.85rem" }}>
-              ENVÍO
+              {encabezadoOrdenable("ENVÍO", filtro === "enviadas")}
               {pendientes.length > 0 && (
                 <label
                   title="Marcar o desmarcar todas las pendientes"
