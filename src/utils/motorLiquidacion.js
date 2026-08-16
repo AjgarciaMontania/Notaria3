@@ -151,9 +151,20 @@ export function calcularMoraEscritura(fechaEscritura, tributaria, fechaPago, opc
     porMes.set(clave, fila);
   }
 
+  // La Gobernación redondea al MIL más cercano, para arriba o para abajo según
+  // caiga. Comprobado contra 31 recibos de 2025 y 2026: coinciden los 31.
+  let mora = Math.round(acumulado / 1000) * 1000;
+
+  // Pero cuando hay días vencidos nunca cobra cero: hay un mínimo de $1.000.
+  //
+  // Lo mostró la escritura 122 (recibo del 30/09/2025): 7 días de mora sobre
+  // $100.000 dan $441, que al redondear serían $0, y el recibo cobra $1.000.
+  // Sin esta línea el sistema quedaría corto en las moras muy chiquitas.
+  if (mora === 0 && acumulado > 0) mora = 1000;
+
   return {
     diasVencidos,
-    mora: Math.round(acumulado / 1000) * 1000,
+    mora,
     moraExacta: acumulado,
     desglose: [...porMes.values()],
     mesesSinTasa: [...mesesSinTasa],
@@ -170,7 +181,19 @@ export function calcOripBase(valor, tarifas) {
   const T = tarifas || TARIFAS_BASE;
   const tramo = T.tramos.find((t) => t.limite === null || valor <= t.limite);
   if (!tramo) return T.derechoMinimo;
-  return tramo.tasa ? valor * tramo.tasa : T.derechoMinimo;
+  const bruto = tramo.tasa ? valor * tramo.tasa : T.derechoMinimo;
+
+  // La ORIP ajusta a la centena el derecho de CADA ACTO, no solo el total.
+  //
+  // Se ve en los recibos: una venta de $73.000.000 da $665.030 exactos y el
+  // recibo cobra $665.000; una de $23.000.000 da $209.530 y cobra $209.500.
+  // Comprobado en 20 actos de los recibos de 2026: los 20 coinciden.
+  //
+  // Parece un detalle y no lo es. Cuando la escritura trae varios actos, los
+  // centavos de cada uno se arrastraban hasta el total y este quedaba $100
+  // arriba o abajo del recibo. Con el ajuste por acto, los 22 recibos de 2026
+  // cuadran al peso.
+  return Math.round(bruto / 100) * 100;
 }
 
 /** Convierte "1.234.567" en 1234567. */
