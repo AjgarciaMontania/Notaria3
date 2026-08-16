@@ -6,7 +6,8 @@ import {
   eliminarCarpeta,
   nombreDisponible,
 } from '../lib/evidencias.js';
-import { tomarFoto, fotosAPdf, nombreEscaneo } from '../lib/escaner.js';
+import { tomarFoto, prepararPagina, fotosAPdf, nombreEscaneo } from '../lib/escaner.js';
+import PaginasEscaneadas from '../componentes/PaginasEscaneadas.jsx';
 
 const formatoTamano = (bytes) => {
   if (!bytes && bytes !== 0) return '—';
@@ -107,13 +108,27 @@ export default function Archivos({ carpeta, archivos, onVolver }) {
   const agregarPagina = async (origen) => {
     try {
       const foto = await tomarFoto(origen);
-      setEscaneo((e) => ({ paginas: [...(e?.paginas || []), foto] }));
+      // El filtro tarda algo menos de un segundo; se avisa para que no parezca
+      // que la aplicación se quedó pegada.
+      setSubiendo({ nombre: 'Limpiando la foto…', porcentaje: 0, actual: 1, total: 1 });
+      const pagina = await prepararPagina(foto);
+      setEscaneo((e) => ({ ...(e || {}), paginas: [...(e?.paginas || []), pagina] }));
     } catch (error) {
       // El usuario canceló la cámara: no es un error real.
       if (!/cancel/i.test(error?.message || '')) {
         mostrar('error', 'No se pudo tomar la foto');
       }
+    } finally {
+      setSubiendo(null);
     }
+  };
+
+  /** Cambia qué versión de una página se va a usar: escáner, gris u original. */
+  const cambiarVersion = (i, cual) => {
+    setEscaneo((e) => ({
+      ...e,
+      paginas: e.paginas.map((p, x) => (x === i ? { ...p, elegida: cual } : p)),
+    }));
   };
 
   const iniciarEscaneo = async () => {
@@ -122,7 +137,7 @@ export default function Archivos({ carpeta, archivos, onVolver }) {
   };
 
   const quitarPagina = (indice) => {
-    setEscaneo((e) => ({ paginas: e.paginas.filter((_, i) => i !== indice) }));
+    setEscaneo((e) => ({ ...e, paginas: e.paginas.filter((_, i) => i !== indice) }));
   };
 
   const guardarEscaneo = async () => {
@@ -199,21 +214,11 @@ export default function Archivos({ carpeta, archivos, onVolver }) {
               <p>Toma una foto de cada página del documento.</p>
             </div>
           ) : (
-            <div className="paginas">
-              {escaneo.paginas.map((pagina, i) => (
-                <div className="pagina" key={i}>
-                  <img src={pagina} alt={`Página ${i + 1}`} />
-                  <span className="pagina-num">{i + 1}</span>
-                  <button
-                    className="pagina-quitar"
-                    onClick={() => quitarPagina(i)}
-                    aria-label={`Quitar página ${i + 1}`}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
+            <PaginasEscaneadas
+              paginas={escaneo.paginas}
+              onCambiar={cambiarVersion}
+              onQuitar={quitarPagina}
+            />
           )}
 
           <div className="fila-botones">

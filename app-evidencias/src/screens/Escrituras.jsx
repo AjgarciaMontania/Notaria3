@@ -11,7 +11,8 @@ import {
   diasHabilesDesde,
   DIAS_HABILES_REGISTRO,
 } from '../lib/escrituras.js';
-import { tomarFoto, fotosAPdf, nombreEscaneo } from '../lib/escaner.js';
+import { tomarFoto, prepararPagina, fotosAPdf, nombreEscaneo } from '../lib/escaner.js';
+import PaginasEscaneadas from '../componentes/PaginasEscaneadas.jsx';
 
 const FILTROS = [
   { id: 'pendientes', texto: 'Pendientes' },
@@ -141,11 +142,30 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
   const agregarPagina = async (origen) => {
     try {
       const foto = await tomarFoto(origen);
-      setEscaneo((e) => ({ ...(e || {}), paginas: [...(e?.paginas || []), foto] }));
+      // El filtro tarda algo menos de un segundo por foto; se avisa para que
+      // no parezca que la aplicación se colgó.
+      setTrabajando('Limpiando la foto…');
+      const pagina = await prepararPagina(foto);
+      setEscaneo((e) => ({ ...(e || {}), paginas: [...(e?.paginas || []), pagina] }));
     } catch (error) {
       if (!/cancel/i.test(error?.message || '')) mostrar('error', 'No se pudo tomar la foto');
+    } finally {
+      setTrabajando(null);
     }
   };
+
+  /** Cambia qué versión de una página se va a usar: escáner, gris u original. */
+  const cambiarVersion = (i, cual) => {
+    setEscaneo((e) => ({
+      ...e,
+      paginas: e.paginas.map((p, x) => (x === i ? { ...p, elegida: cual } : p)),
+    }));
+  };
+
+  // Se conserva el resto del estado: si esto es el recibo de una escritura,
+  // quitar una página no puede borrar a cuál pertenece.
+  const quitarPagina = (i) =>
+    setEscaneo((e) => ({ ...e, paginas: e.paginas.filter((_, x) => x !== i) }));
 
   /**
    * Abre el escáner. Si se le pasa una escritura, lo escaneado será el RECIBO
@@ -271,26 +291,11 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
               <p>Toma una foto de cada página del oficio de envío.</p>
             </div>
           ) : (
-            <div className="paginas">
-              {escaneo.paginas.map((pagina, i) => (
-                <div className="pagina" key={i}>
-                  <img src={pagina} alt={`Página ${i + 1}`} />
-                  <span className="pagina-num">{i + 1}</span>
-                  <button
-                    className="pagina-quitar"
-                    onClick={() =>
-                      // Se conserva el resto del estado: si esto es el recibo
-                      // de una escritura, quitar una página no puede borrar a
-                      // cuál pertenece.
-                      setEscaneo((e) => ({ ...e, paginas: e.paginas.filter((_, x) => x !== i) }))
-                    }
-                    aria-label={`Quitar página ${i + 1}`}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
+            <PaginasEscaneadas
+              paginas={escaneo.paginas}
+              onCambiar={cambiarVersion}
+              onQuitar={quitarPagina}
+            />
           )}
 
           <div className="fila-botones">
