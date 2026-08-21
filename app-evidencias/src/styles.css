@@ -1240,3 +1240,40 @@ input:focus {
   min-height: 42px;
   font-size: 0.9rem;
 }
+
+/* ── Buscador del panel de Escrituras ───────────────────────────────────── */
+.buscador {
+  position: relative;
+  margin: 0.6rem 0;
+}
+
+.buscador input {
+  width: 100%;
+  padding: 12px 40px 12px 14px;
+  font-size: 1rem;
+  font-family: inherit;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  box-sizing: border-box;
+  background: white;
+}
+
+.buscador-limpiar {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: var(--gris-claro);
+  color: var(--gris);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.centrado-texto {
+  text-align: center;
+  margin: 0.2rem 0 0.6rem;
+}

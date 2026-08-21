@@ -46,8 +46,29 @@ export async function agregarEscritura(datos) {
     matricula: datos.matricula?.trim() || '',
     notaDevolutiva: datos.notaDevolutiva || 'NO',
     motivo: datos.motivo?.trim() || '',
+    // Cuantía del acto. Es lo que faltaba para poder liquidar desde aquí:
+    // el acto y la fecha ya estaban, el valor no. Las escrituras guardadas
+    // antes no lo traen y se leen como 0, sin necesidad de convertir nada.
+    valorActo: soloDigitos(datos.valorActo),
     enviado: false,
   });
+}
+
+/** Deja solo los dígitos de lo que se escribió: "60.000.000" → 60000000. */
+export function soloDigitos(texto) {
+  const n = parseInt(String(texto ?? '').replace(/\D/g, ''), 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Cambia la cuantía de una escritura ya guardada.
+ *
+ * Sirve para completar las que quedaron sin valor, que son todas las
+ * anteriores a este cambio.
+ */
+export async function actualizarValorActo(escritura, valor) {
+  if (!escritura?.id) throw new Error('Escritura no válida');
+  await updateDoc(doc(db, 'escrituras', escritura.id), { valorActo: soloDigitos(valor) });
 }
 
 /**

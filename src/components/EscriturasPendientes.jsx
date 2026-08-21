@@ -18,6 +18,8 @@ import {
   hoyLocal,
 } from "../utils/soportesEscrituras";
 import { archivosHuerfanos } from "../utils/limpiezaArchivos";
+import { TIPOS_DE_ACTO, sePuedeLiquidar } from "../utils/actoDesdeTexto";
+import { formatNumberWithPoints, parseNumberWithoutPoints, formatCOP } from "../utils/formatters";
 
 // Función auxiliar para convertir fecha de Excel a string "YYYY-MM-DD"
 const excelDateToString = (value) => {
@@ -43,6 +45,7 @@ export default function EscriturasPendientes({ isAdmin }) {
     matricula: "",
     notaDevolutiva: "NO",
     motivo: "",
+    valorActo: "",
   });
   const [editingItem, setEditingItem] = useState(null);
 
@@ -257,19 +260,22 @@ export default function EscriturasPendientes({ isAdmin }) {
       return;
     }
     try {
+      // El valor se digita con puntos ("60.000.000") pero se guarda como
+      // número, que es lo que el liquidador espera recibir.
+      const datos = { ...newEntry, valorActo: parseNumberWithoutPoints(newEntry.valorActo) };
       if (editingItem) {
-        await updateDoc(doc(db, "escrituras", editingItem.id), newEntry);
+        await updateDoc(doc(db, "escrituras", editingItem.id), datos);
         alert("Registro actualizado exitosamente");
       } else {
         const querySnapshot = await getDocs(collection(db, "escrituras"));
         const maxItem = querySnapshot.docs.length > 0
           ? Math.max(...querySnapshot.docs.map(d => d.data().item || 0))
           : 0;
-        const newItem = { item: maxItem + 1, ...newEntry };
+        const newItem = { item: maxItem + 1, ...datos };
         await addDoc(collection(db, "escrituras"), newItem);
         alert("Registro agregado exitosamente");
       }
-      setNewEntry({ acto: "", numeroEscritura: "", fechaEscritura: "", matricula: "", notaDevolutiva: "NO", motivo: "" });
+      setNewEntry({ acto: "", numeroEscritura: "", fechaEscritura: "", matricula: "", notaDevolutiva: "NO", motivo: "", valorActo: "" });
       setEditingItem(null);
     } catch (error) {
       console.error("Error al guardar:", error);
@@ -279,6 +285,7 @@ export default function EscriturasPendientes({ isAdmin }) {
 
   const editEntry = (r) => {
     setNewEntry({
+      valorActo: r.valorActo ? formatNumberWithPoints(String(r.valorActo)) : "",
       acto: r.acto,
       numeroEscritura: r.numeroEscritura,
       fechaEscritura: r.fechaEscritura,
@@ -371,6 +378,7 @@ export default function EscriturasPendientes({ isAdmin }) {
     const data = visibles.map((r, posicion) => ({
       ITEM: posicion + 1,
       ACTO: r.acto,
+      "VALOR ACTO": r.valorActo || 0,
       "NUMERO ESCRITURA": r.numeroEscritura,
       "FECHA ESCRITURA": r.fechaEscritura,
       MATRICULA: r.matricula,
@@ -412,18 +420,39 @@ export default function EscriturasPendientes({ isAdmin }) {
         ? Math.max(...querySnapshot.docs.map(d => d.data().item || 0))
         : 0;
 
+      // ── Se buscan las columnas por su NOMBRE, no por su posición ────────
+      // Antes se leían por número de columna fijo. Al agregar "VALOR ACTO" al
+      // Excel, esas posiciones se corren y un archivo recién exportado se
+      // importaría con los datos cambiados de campo.
+      //
+      // Si el archivo no trae encabezados reconocibles —los que se hicieron a
+      // mano antes de este cambio— se vuelve al orden de siempre.
+      const norma = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+      const encabezados = (data[0] || []).map(norma);
+      const col = (nombre, porDefecto) => {
+        const i = encabezados.indexOf(norma(nombre));
+        return i >= 0 ? i : porDefecto;
+      };
+      const cACTO = col("ACTO", 1);
+      const cNUM = col("NUMERO ESCRITURA", 2);
+      const cFECHA = col("FECHA ESCRITURA", 3);
+      const cMAT = col("MATRICULA", 4);
+      const cNOTA = col("NOTA DEVOLUTIVA", 5);
+      const cVALOR = col("VALOR ACTO", -1);
+
       let contador = 1;
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
         if (!row || row.length < 2) continue;
         const newItem = {
           item: maxItem + contador,
-          acto: row[1] ? String(row[1]) : "",
-          numeroEscritura: row[2] ? String(row[2]) : "",
-          fechaEscritura: excelDateToString(row[3]),
-          matricula: row[4] ? String(row[4]) : "",
-          notaDevolutiva: row[5] ? String(row[5]) : "NO",
-          motivo: row[6] ? String(row[6]) : "",
+          acto: row[cACTO] ? String(row[cACTO]) : "",
+          numeroEscritura: row[cNUM] ? String(row[cNUM]) : "",
+          fechaEscritura: excelDateToString(row[cFECHA]),
+          matricula: row[cMAT] ? String(row[cMAT]) : "",
+          valorActo: cVALOR >= 0 ? parseNumberWithoutPoints(String(row[cVALOR] ?? "")) : 0,
+          notaDevolutiva: row[cNOTA] ? String(row[cNOTA]) : "NO",
+          motivo: row[col("MOTIVO", 6)] ? String(row[col("MOTIVO", 6)]) : "",
         };
         await addDoc(collection(db, "escrituras"), newItem);
         contador++;
@@ -447,7 +476,31 @@ export default function EscriturasPendientes({ isAdmin }) {
             {editingItem ? "Editar Escritura" : "Agregar Nueva Escritura"}
           </h3>
           <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-            <input type="text" placeholder="Acto" value={newEntry.acto} onChange={(e) => setNewEntry({ ...newEntry, acto: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
+            {/* El acto se ELIGE. La liquidación solo entiende estos once
+                tipos, cada uno con su tarifa: escrito a mano, el botón de
+                liquidar no sabría qué cobrar. */}
+            <select
+              value={newEntry.acto}
+              onChange={(e) => setNewEntry({ ...newEntry, acto: e.target.value })}
+              style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px", background: "white" }}
+            >
+              <option value="">Acto…</option>
+              {TIPOS_DE_ACTO.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+              {/* Si se está editando una escritura vieja con el acto escrito a
+                  mano, se conserva para no cambiarle el dato a nadie. */}
+              {newEntry.acto && !sePuedeLiquidar(newEntry.acto) && (
+                <option value={newEntry.acto}>{newEntry.acto} (escrito a mano)</option>
+              )}
+            </select>
+            <input
+              type="text"
+              placeholder="Valor del acto (opcional)"
+              value={newEntry.valorActo || ""}
+              onChange={(e) => setNewEntry({ ...newEntry, valorActo: formatNumberWithPoints(e.target.value.replace(/[^\d]/g, "")) })}
+              style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }}
+            />
             <input type="text" placeholder="N° Escritura" value={newEntry.numeroEscritura} onChange={(e) => setNewEntry({ ...newEntry, numeroEscritura: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
             <input type="date" value={newEntry.fechaEscritura} onChange={(e) => setNewEntry({ ...newEntry, fechaEscritura: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px", width: "100%" }} />
             <input type="text" placeholder="Matrícula" value={newEntry.matricula} onChange={(e) => setNewEntry({ ...newEntry, matricula: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
@@ -635,7 +688,25 @@ export default function EscriturasPendientes({ isAdmin }) {
               style={{ borderBottom: "1px solid #e5e7eb" }}
             >
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{posicion + 1}</td>
-              <td className="celda-texto" style={{ padding: "12px 10px", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4" }}>{r.acto}</td>
+              <td className="celda-texto" style={{ padding: "12px 10px", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4" }}>
+                {r.acto}
+                {r.valorActo > 0 && (
+                  <>
+                    <br />
+                    <small style={{ color: "#166534", fontWeight: 600, fontSize: "0.78rem" }}>
+                      {formatCOP(r.valorActo)}
+                    </small>
+                  </>
+                )}
+                {!sePuedeLiquidar(r.acto) && (
+                  <>
+                    <br />
+                    <small title="Este acto se escribió a mano y no está en la lista de tipos que la liquidación entiende. Edítalo y elige el acto." style={{ color: "#b45309", fontSize: "0.72rem" }}>
+                      ⚠ acto sin tipo
+                    </small>
+                  </>
+                )}
+              </td>
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.numeroEscritura}</td>
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.fechaEscritura}</td>
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.matricula}</td>

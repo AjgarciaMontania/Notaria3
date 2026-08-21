@@ -19,7 +19,7 @@ const ACTO_VACIO = () => ({
   numActos: 1,
 });
 
-export default function Liquidacion({ onSalir }) {
+export default function Liquidacion({ onSalir, entrantes = null }) {
   const { tasaAnual, tasasHistoricas, tarifas } = useTarifas();
   const [actos, setActos] = useState([]);
   const [fechaPago, setFechaPago] = useState(HOY);
@@ -28,6 +28,37 @@ export default function Liquidacion({ onSalir }) {
   const [aviso, setAviso] = useState(null);
   const [generando, setGenerando] = useState(false);
   const lamina = useRef(null);
+  // Actos que llegan desde el panel de Escrituras esperando decisión.
+  const [porDecidir, setPorDecidir] = useState(null);
+
+  // Llegaron actos desde Escrituras.
+  //
+  // Si la pantalla está vacía entran directo. Si ya había una liquidación a
+  // medio hacer se PREGUNTA, porque pisarla sin avisar borra trabajo que
+  // nadie pidió borrar.
+  //
+  // Va en un efecto y no en el dibujado porque avisar al padre que ya se
+  // usaron es tocar a otro componente, y eso no se puede hacer mientras se
+  // dibuja: React lo advierte y el aviso se puede perder.
+  //
+  // La comparación es por identidad del arreglo: cada envío desde Escrituras
+  // crea uno nuevo, así que esto corre una sola vez por envío.
+  // Se guarda cuál fue el último envío atendido. Como Escrituras crea una
+  // lista nueva cada vez que se pulsa Liquidar, comparar por identidad basta
+  // para saber si esto ya se procesó, y así no se vuelve a preguntar en cada
+  // dibujado de la pantalla.
+  const [ultimoEntrante, setUltimoEntrante] = useState(null);
+  if (entrantes && entrantes !== ultimoEntrante) {
+    setUltimoEntrante(entrantes);
+    if (actos.length === 0) setActos(entrantes);
+    else setPorDecidir(entrantes);
+  }
+
+  const resolverEntrantes = (modo) => {
+    if (modo === 'reemplazar') setActos(porDecidir);
+    if (modo === 'agregar') setActos((previos) => [...previos, ...porDecidir]);
+    setPorDecidir(null);
+  };
 
   const mostrar = (tipo, texto, ms = 5000) => {
     setAviso({ tipo, texto });
@@ -201,6 +232,41 @@ export default function Liquidacion({ onSalir }) {
       <strong>{formatCOP(valor)}</strong>
     </div>
   );
+
+  // Llegaron actos desde Escrituras y aquí ya había una liquidación empezada.
+  if (porDecidir) {
+    return (
+      <div className="pantalla">
+        <header className="barra">
+          <div><h1>¿Qué hago con lo que hay?</h1></div>
+        </header>
+        <main className="contenido">
+          <div className="aviso">
+            Vienen <strong>{porDecidir.length}</strong>{' '}
+            {porDecidir.length === 1 ? 'acto' : 'actos'} desde Escrituras, y en esta
+            pantalla ya tienes <strong>{actos.length}</strong>{' '}
+            {actos.length === 1 ? 'acto cargado' : 'actos cargados'}.
+          </div>
+
+          <button className="boton principal ancho" onClick={() => resolverEntrantes('agregar')}>
+            Agregar a lo que ya hay
+            <br />
+            <small>Quedarían {actos.length + porDecidir.length} actos</small>
+          </button>
+
+          <button className="boton gris ancho" onClick={() => resolverEntrantes('reemplazar')}>
+            Reemplazar lo que hay
+            <br />
+            <small>Se pierde la liquidación actual</small>
+          </button>
+
+          <button className="boton fantasma ancho" onClick={() => setPorDecidir(null)}>
+            Cancelar y dejar todo como está
+          </button>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="pantalla">

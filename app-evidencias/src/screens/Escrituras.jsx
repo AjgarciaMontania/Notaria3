@@ -11,6 +11,8 @@ import {
   diasHabilesDesde,
   DIAS_HABILES_REGISTRO,
 } from '../lib/escrituras.js';
+import { TIPOS_DE_ACTO, sePuedeLiquidar, actosParaLiquidar } from '@calculo/actoDesdeTexto.js';
+import { formatNumberWithPoints } from '@calculo/formatters.js';
 import { tomarFoto, prepararPagina, fotosAPdf, nombreEscaneo } from '../lib/escaner.js';
 import PaginasEscaneadas from '../componentes/PaginasEscaneadas.jsx';
 
@@ -22,16 +24,18 @@ const FILTROS = [
 ];
 
 const ENTRADA_VACIA = {
-  acto: '',
+  acto: TIPOS_DE_ACTO[0],
   numeroEscritura: '',
   fechaEscritura: '',
   matricula: '',
   notaDevolutiva: 'NO',
   motivo: '',
+  valorActo: '',
 };
 
-export default function Escrituras({ escrituras, cargando, onSalir }) {
+export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }) {
   const [filtro, setFiltro] = useState('pendientes');
+  const [busqueda, setBusqueda] = useState('');
   const [seleccion, setSeleccion] = useState([]);
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(null); // texto a mostrar mientras sube
@@ -50,12 +54,22 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
     setTimeout(() => setAviso(null), ms);
   };
 
-  const visibles = escrituras.filter((e) =>
+  const porEstado = escrituras.filter((e) =>
     filtro === 'pendientes' ? !e.enviado && !e.enRegistro
       : filtro === 'registro' ? e.enRegistro && !e.enviado
         : filtro === 'enviadas' ? e.enviado
           : true
   );
+
+  // El buscador trabaja SOBRE el chip que esté puesto, no en vez de él: así
+  // "en registro" + "420" da las que están en registro de esa matrícula.
+  const texto = busqueda.trim().toLowerCase();
+  const visibles = !texto
+    ? porEstado
+    : porEstado.filter((e) =>
+        [e.numeroEscritura, e.acto, e.matricula, e.motivo]
+          .some((campo) => String(campo || '').toLowerCase().includes(texto))
+      );
   const pendientes = escrituras.filter((e) => !e.enviado);
 
   const alternar = (id) => {
@@ -63,6 +77,39 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
   };
 
   const elegidas = () => escrituras.filter((e) => seleccion.includes(e.id));
+
+  /**
+   * Pasa las escrituras marcadas a la pantalla de liquidar.
+   *
+   * Las que tengan un acto que la liquidación no reconoce NO se dejan caer en
+   * silencio: se avisa cuáles son. Una escritura que desaparece sin decir por
+   * qué es peor que un aviso incómodo.
+   */
+  const liquidarSeleccionadas = () => {
+    const elegidas = escrituras.filter((e) => seleccion.includes(e.id));
+    if (!elegidas.length) return;
+
+    const { actos, sinTipo } = actosParaLiquidar(elegidas);
+
+    if (!actos.length) {
+      mostrar(
+        'error',
+        `Ninguna de las ${elegidas.length} se puede liquidar: el acto que tienen escrito no está en la lista. Ábrelas y elige el acto.`,
+        11000
+      );
+      return;
+    }
+    if (sinTipo.length) {
+      const numeros = sinTipo.map((e) => e.numeroEscritura || '?').join(', ');
+      mostrar(
+        'error',
+        `Se llevaron ${actos.length}. Quedaron por fuera ${sinTipo.length} porque su acto no está en la lista: ${numeros}`,
+        11000
+      );
+    }
+    setSeleccion([]);
+    onLiquidar?.(actos);
+  };
 
   // ── Subida del soporte, venga de donde venga ──────────────────────────────
   const enviarConSoporte = async (archivo, nombre) => {
@@ -348,10 +395,49 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
         </header>
 
         <form className="contenido" onSubmit={guardarNueva}>
-          {campo('acto', 'Acto', { placeholder: 'Ej: COMPRAVENTA', autoFocus: true })}
+          {/* El acto se ELIGE, no se escribe. La liquidación solo entiende
+              estos once tipos, cada uno con su tarifa: si aquí se escribiera
+              "VENTA" a mano, el botón de liquidar no sabría qué cobrar. */}
+          <div className="campo">
+            <label htmlFor="acto">Acto</label>
+            <select
+              id="acto"
+              value={formulario.acto}
+              onChange={(ev) => setFormulario({ ...formulario, acto: ev.target.value })}
+              autoFocus
+            >
+              {TIPOS_DE_ACTO.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+              {/* Si esta escritura viene de antes con un acto escrito a mano,
+                  se conserva tal cual para no cambiarle el dato a nadie. */}
+              {!sePuedeLiquidar(formulario.acto) && formulario.acto && (
+                <option value={formulario.acto}>{formulario.acto} (escrito a mano)</option>
+              )}
+            </select>
+          </div>
           {campo('numeroEscritura', 'N° de escritura', { placeholder: 'Ej: 077', inputMode: 'numeric' })}
           {campo('fechaEscritura', 'Fecha de la escritura', { type: 'date' })}
           {campo('matricula', 'Matrícula inmobiliaria', { placeholder: 'Ej: 420-113130' })}
+
+          {/* La cuantía. Con el acto y la fecha ya se puede liquidar desde
+              aquí sin volver a escribir nada. Si todavía no se sabe, se deja
+              en blanco y queda en $0 hasta que se complete. */}
+          <div className="campo">
+            <label htmlFor="valorActo">Valor del acto</label>
+            <input
+              id="valorActo"
+              inputMode="numeric"
+              value={formulario.valorActo}
+              onChange={(ev) =>
+                setFormulario({
+                  ...formulario,
+                  valorActo: formatNumberWithPoints(ev.target.value.replace(/[^\d]/g, '')),
+                })
+              }
+              placeholder="Ej: 64.000.000 · déjalo vacío si aún no se sabe"
+            />
+          </div>
 
           <div className="campo">
             <label htmlFor="nota">¿Tiene nota devolutiva?</label>
@@ -405,6 +491,31 @@ export default function Escrituras({ escrituras, cargando, onSalir }) {
             </button>
           ))}
         </div>
+
+        <div className="buscador">
+          <input
+            value={busqueda}
+            onChange={(ev) => setBusqueda(ev.target.value)}
+            placeholder="Buscar por escritura, acto o matrícula"
+            inputMode="search"
+          />
+          {busqueda && (
+            <button className="buscador-limpiar" onClick={() => setBusqueda('')} aria-label="Limpiar búsqueda">
+              ✕
+            </button>
+          )}
+        </div>
+        {busqueda.trim() && (
+          <p className="tenue centrado-texto">
+            {visibles.length} de {porEstado.length} en «{FILTROS.find((f) => f.id === filtro)?.texto}»
+          </p>
+        )}
+
+        {seleccion.length > 0 && (
+          <button className="boton principal ancho" onClick={liquidarSeleccionadas}>
+            🧮 Liquidar {seleccion.length} {seleccion.length === 1 ? 'escritura' : 'escrituras'}
+          </button>
+        )}
 
         <button className="boton gris ancho" onClick={() => setFormulario({ ...ENTRADA_VACIA })}>
           + Nueva escritura

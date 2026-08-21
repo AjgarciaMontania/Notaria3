@@ -36,6 +36,9 @@ export default function App() {
   // Pestaña activa: 'evidencias', 'escrituras' o 'liquidacion'
   const [pestana, setPestana] = useState('evidencias');
   const [escrituras, setEscrituras] = useState([]);
+  // Actos que Escrituras manda a Liquidar. Viven aquí y no dentro de
+  // Liquidación porque el viaje cruza de una pestaña a la otra.
+  const [actosEntrantes, setActosEntrantes] = useState(null);
   const [cargandoEscrituras, setCargandoEscrituras] = useState(true);
   const temporizador = useRef(null);
 
@@ -282,10 +285,26 @@ export default function App() {
             escrituras={escrituras}
             cargando={cargandoEscrituras}
             onSalir={salir}
+            onLiquidar={(actos) => {
+              setActosEntrantes(actos);
+              setPestana('liquidacion');
+            }}
           />
-        ) : (
-          <Liquidacion onSalir={salir} />
-        )}
+        ) : null}
+
+        {/* La liquidación se queda MONTADA aunque estés en otra pestaña, solo
+            escondida.
+
+            Antes se desmontaba al cambiar de pestaña, y con ella se iban los
+            actos que llevaras cargados: ir a mirar una escritura a la pestaña
+            de al lado borraba la liquidación a medio hacer, sin avisar.
+
+            Esconderla en vez de quitarla también es lo que hace que traer
+            escrituras desde el otro panel tenga sentido: al llegar, lo que ya
+            había sigue ahí y se puede preguntar si reemplazar o agregar. */}
+        <div style={pestana === 'liquidacion' ? undefined : { display: 'none' }}>
+          <Liquidacion onSalir={salir} entrantes={actosEntrantes} />
+        </div>
       </div>
 
       <nav className="pestanas">
