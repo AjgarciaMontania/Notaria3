@@ -18,7 +18,7 @@ import {
   hoyLocal,
 } from "../utils/soportesEscrituras";
 import { archivosHuerfanos } from "../utils/limpiezaArchivos";
-import { TIPOS_DE_ACTO, sePuedeLiquidar } from "../utils/actoDesdeTexto";
+import { ACTOS_PARA_ESCRITURAS, sePuedeLiquidar, esActoDeLaLista } from "../utils/actoDesdeTexto";
 import { formatNumberWithPoints, parseNumberWithoutPoints, formatCOP } from "../utils/formatters";
 
 // Función auxiliar para convertir fecha de Excel a string "YYYY-MM-DD"
@@ -479,21 +479,33 @@ export default function EscriturasPendientes({ isAdmin }) {
             {/* El acto se ELIGE. La liquidación solo entiende estos once
                 tipos, cada uno con su tarifa: escrito a mano, el botón de
                 liquidar no sabría qué cobrar. */}
+            {/* La lista trae los tipos que la liquidación sabe calcular, pero
+                NUNCA bloquea el registro: con «Otro» se escribe el acto a mano.
+                Registrar la escritura es lo primero; que además se pueda
+                liquidar sola es un extra. */}
             <select
-              value={newEntry.acto}
-              onChange={(e) => setNewEntry({ ...newEntry, acto: e.target.value })}
+              value={esActoDeLaLista(newEntry.acto) || !newEntry.acto ? newEntry.acto : "__otro__"}
+              onChange={(e) =>
+                setNewEntry({ ...newEntry, acto: e.target.value === "__otro__" ? " " : e.target.value })
+              }
               style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px", background: "white" }}
             >
               <option value="">Acto…</option>
-              {TIPOS_DE_ACTO.map((t) => (
-                <option key={t} value={t}>{t}</option>
+              {ACTOS_PARA_ESCRITURAS.map((t) => (
+                <option key={t} value={t}>{t}{sePuedeLiquidar(t) ? "" : " · no se liquida"}</option>
               ))}
-              {/* Si se está editando una escritura vieja con el acto escrito a
-                  mano, se conserva para no cambiarle el dato a nadie. */}
-              {newEntry.acto && !sePuedeLiquidar(newEntry.acto) && (
-                <option value={newEntry.acto}>{newEntry.acto} (escrito a mano)</option>
-              )}
+              <option value="__otro__">Otro — escribirlo a mano</option>
             </select>
+            {newEntry.acto !== "" && !esActoDeLaLista(newEntry.acto) && (
+              <input
+                type="text"
+                autoFocus
+                placeholder="Escribe el acto"
+                value={newEntry.acto.trim() === "" ? "" : newEntry.acto}
+                onChange={(e) => setNewEntry({ ...newEntry, acto: e.target.value })}
+                style={{ padding: "12px", fontSize: "1rem", border: "1px solid #d97706", borderRadius: "8px" }}
+              />
+            )}
             <input
               type="text"
               placeholder="Valor del acto (opcional)"
@@ -701,8 +713,13 @@ export default function EscriturasPendientes({ isAdmin }) {
                 {!sePuedeLiquidar(r.acto) && (
                   <>
                     <br />
-                    <small title="Este acto se escribió a mano y no está en la lista de tipos que la liquidación entiende. Edítalo y elige el acto." style={{ color: "#b45309", fontSize: "0.72rem" }}>
-                      ⚠ acto sin tipo
+                    <small
+                      title={esActoDeLaLista(r.acto)
+                        ? "Este acto se registra pero todavía no se puede liquidar: falta un recibo que confirme su tarifa."
+                        : "Este acto se escribió a mano y no está en la lista. Edítalo y elige el acto si quieres poder liquidarlo."}
+                      style={{ color: "#b45309", fontSize: "0.72rem" }}
+                    >
+                      {esActoDeLaLista(r.acto) ? "⚠ no se liquida" : "⚠ acto sin tipo"}
                     </small>
                   </>
                 )}

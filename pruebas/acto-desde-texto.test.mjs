@@ -9,6 +9,8 @@ import {
   sePuedeLiquidar,
   actosParaLiquidar,
   TIPOS_DE_ACTO,
+  ACTOS_PARA_ESCRITURAS,
+  esActoDeLaLista,
 } from "../src/utils/actoDesdeTexto.js";
 
 test("los once tipos se reconocen tal cual", () => {
@@ -73,4 +75,34 @@ test("una lista vacia o mal formada no revienta", () => {
   assert.deepEqual(actosParaLiquidar([]), { actos: [], sinTipo: [] });
   assert.deepEqual(actosParaLiquidar(), { actos: [], sinTipo: [] });
   assert.deepEqual(actosParaLiquidar([null, undefined]), { actos: [], sinTipo: [] });
+});
+
+// ── Actos que se registran pero todavia no se liquidan ──────────────────────
+test("la constitucion de patrimonio de familia se puede REGISTRAR", () => {
+  assert.ok(ACTOS_PARA_ESCRITURAS.includes("CONSTITUCIÓN PATRIMONIO DE FAMILIA"));
+  assert.equal(esActoDeLaLista("CONSTITUCIÓN PATRIMONIO DE FAMILIA"), true);
+  assert.equal(esActoDeLaLista("constitucion patrimonio de familia"), true);
+});
+
+test("pero NO se liquida: no hay recibo que respalde su tarifa", () => {
+  // Si algun dia esto falla porque alguien la metio a actosConfig.js, que sea
+  // porque apareció un recibo. No por conveniencia.
+  assert.equal(sePuedeLiquidar("CONSTITUCIÓN PATRIMONIO DE FAMILIA"), false);
+  assert.equal(tipoDeActo("CONSTITUCIÓN PATRIMONIO DE FAMILIA"), null);
+  assert.ok(!TIPOS_DE_ACTO.includes("CONSTITUCIÓN PATRIMONIO DE FAMILIA"));
+});
+
+test("al liquidar queda apartada y avisada, no en cero", () => {
+  const { actos, sinTipo } = actosParaLiquidar([
+    { id: "p", acto: "CONSTITUCIÓN PATRIMONIO DE FAMILIA", numeroEscritura: "200", fechaEscritura: "2026-08-20" },
+    { id: "q", acto: "COMPRAVENTA", numeroEscritura: "201", fechaEscritura: "2026-08-20", valorActo: 50000000 },
+  ]);
+  assert.equal(actos.length, 1, "solo la compraventa se liquida");
+  assert.equal(sinTipo.length, 1);
+  assert.equal(sinTipo[0].numeroEscritura, "200");
+});
+
+test("un acto escrito a mano NO es lo mismo que uno de la lista sin tarifa", () => {
+  assert.equal(esActoDeLaLista("CUALQUIER COSA"), false);
+  assert.equal(esActoDeLaLista("CONSTITUCIÓN PATRIMONIO DE FAMILIA"), true);
 });

@@ -11,7 +11,7 @@ import {
   diasHabilesDesde,
   DIAS_HABILES_REGISTRO,
 } from '../lib/escrituras.js';
-import { TIPOS_DE_ACTO, sePuedeLiquidar, actosParaLiquidar } from '@calculo/actoDesdeTexto.js';
+import { ACTOS_PARA_ESCRITURAS, TIPOS_DE_ACTO, sePuedeLiquidar, esActoDeLaLista, actosParaLiquidar } from '@calculo/actoDesdeTexto.js';
 import { formatNumberWithPoints } from '@calculo/formatters.js';
 import { tomarFoto, prepararPagina, fotosAPdf, nombreEscaneo } from '../lib/escaner.js';
 import PaginasEscaneadas from '../componentes/PaginasEscaneadas.jsx';
@@ -395,26 +395,50 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
         </header>
 
         <form className="contenido" onSubmit={guardarNueva}>
-          {/* El acto se ELIGE, no se escribe. La liquidación solo entiende
-              estos once tipos, cada uno con su tarifa: si aquí se escribiera
-              "VENTA" a mano, el botón de liquidar no sabría qué cobrar. */}
+          {/* La lista trae los tipos que la liquidación sabe calcular, pero
+              NUNCA impide registrar: con «Otro» el acto se escribe a mano.
+              Anotar la escritura es lo primero; que además se pueda liquidar
+              sola es un extra, no un requisito. */}
           <div className="campo">
             <label htmlFor="acto">Acto</label>
             <select
               id="acto"
-              value={formulario.acto}
-              onChange={(ev) => setFormulario({ ...formulario, acto: ev.target.value })}
+              value={esActoDeLaLista(formulario.acto) ? formulario.acto : '__otro__'}
+              onChange={(ev) =>
+                setFormulario({
+                  ...formulario,
+                  acto: ev.target.value === '__otro__' ? ' ' : ev.target.value,
+                })
+              }
               autoFocus
             >
-              {TIPOS_DE_ACTO.map((t) => (
-                <option key={t} value={t}>{t}</option>
+              {ACTOS_PARA_ESCRITURAS.map((t) => (
+                <option key={t} value={t}>
+                  {t}{sePuedeLiquidar(t) ? '' : ' · no se liquida'}
+                </option>
               ))}
-              {/* Si esta escritura viene de antes con un acto escrito a mano,
-                  se conserva tal cual para no cambiarle el dato a nadie. */}
-              {!sePuedeLiquidar(formulario.acto) && formulario.acto && (
-                <option value={formulario.acto}>{formulario.acto} (escrito a mano)</option>
-              )}
+              <option value="__otro__">Otro — escribirlo a mano</option>
             </select>
+            {esActoDeLaLista(formulario.acto) && !sePuedeLiquidar(formulario.acto) && (
+              <small className="tenue">
+                Se registra normalmente, pero todavía no entra en el botón de
+                liquidar: falta un recibo que confirme su tarifa.
+              </small>
+            )}
+            {!esActoDeLaLista(formulario.acto) && (
+              <>
+                <input
+                  style={{ marginTop: '0.5rem' }}
+                  value={formulario.acto.trim() === '' ? '' : formulario.acto}
+                  onChange={(ev) => setFormulario({ ...formulario, acto: ev.target.value })}
+                  placeholder="Escribe el acto"
+                />
+                <small className="tenue">
+                  Se guarda tal cual. Como no está en la lista, esta escritura no
+                  entrará en el botón de liquidar hasta que le elijas un tipo.
+                </small>
+              </>
+            )}
           </div>
           {campo('numeroEscritura', 'N° de escritura', { placeholder: 'Ej: 077', inputMode: 'numeric' })}
           {campo('fechaEscritura', 'Fecha de la escritura', { type: 'date' })}

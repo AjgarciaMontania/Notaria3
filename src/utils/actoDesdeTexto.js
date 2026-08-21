@@ -27,6 +27,27 @@ import { formatNumberWithPoints } from "./formatters.js";
 /** Los once tipos que la liquidación sabe calcular. */
 export const TIPOS_DE_ACTO = Object.keys(ACTOS_CONFIG);
 
+/**
+ * Actos que la notaría registra pero que TODAVÍA no se saben liquidar.
+ *
+ * Están aquí y NO en actosConfig.js a propósito. Poner uno allá le daría una
+ * tarifa, y no la tenemos: se revisaron los 143 folios de las relaciones de
+ * ingresos de 2025 y 2026 y no aparece ni un recibo de una constitución de
+ * patrimonio de familia. Solo hay de CANCELACIÓN, que es otro acto.
+ *
+ * Al dejarlo fuera, el panel de Escrituras sí lo ofrece en la lista —para no
+ * obligar a escribirlo a mano cada vez— pero el botón de liquidar lo aparta y
+ * avisa, en vez de calcularlo en cero calladamente. Un cero silencioso en una
+ * liquidación es un cobro mal hecho.
+ *
+ * Para moverlo a la lista de los que sí se liquidan basta UN recibo: de ahí
+ * salen la tarifa de la ORIP y la del impuesto de registro.
+ */
+export const ACTOS_SIN_TARIFA = ["CONSTITUCIÓN PATRIMONIO DE FAMILIA"];
+
+/** Todo lo que se puede elegir en el panel de Escrituras Pendientes. */
+export const ACTOS_PARA_ESCRITURAS = [...TIPOS_DE_ACTO, ...ACTOS_SIN_TARIFA];
+
 /** Quita tildes, mayúsculas y espacios de más para poder comparar. */
 function normalizar(texto) {
   return String(texto || "")
@@ -53,6 +74,19 @@ export function tipoDeActo(texto) {
 /** ¿Este acto se puede liquidar tal como está guardado? */
 export function sePuedeLiquidar(texto) {
   return tipoDeActo(texto) !== null;
+}
+
+/**
+ * ¿Está en la lista del panel de Escrituras?
+ *
+ * Sirve para distinguir dos cosas que se ven parecidas pero no lo son: un acto
+ * que alguien escribió a mano, y uno que se eligió de la lista y que todavía
+ * no se sabe liquidar. El primero puede ser un error de digitación; el segundo
+ * es una decisión tomada a conciencia.
+ */
+export function esActoDeLaLista(texto) {
+  const n = normalizar(texto);
+  return POR_NOMBRE.has(n) || ACTOS_SIN_TARIFA.some((a) => normalizar(a) === n);
 }
 
 /**
