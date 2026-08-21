@@ -1,5 +1,5 @@
 // src/components/EscriturasPendientes.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import * as XLSX from 'xlsx';
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
@@ -18,7 +18,8 @@ import {
   hoyLocal,
 } from "../utils/soportesEscrituras";
 import { archivosHuerfanos } from "../utils/limpiezaArchivos";
-import { ACTOS_PARA_ESCRITURAS, sePuedeLiquidar, esActoDeLaLista, actosParaLiquidar } from "../utils/actoDesdeTexto";
+import { ACTOS_PARA_ESCRITURAS, sePuedeLiquidar, esActoDeLaLista } from "../utils/actoDesdeTexto";
+import { actosParaLiquidar, actosDeEscritura, camposDeActos, cuantiaTotal } from "../utils/actosDeEscritura";
 import { formatNumberWithPoints, parseNumberWithoutPoints, formatCOP } from "../utils/formatters";
 
 // Función auxiliar para convertir fecha de Excel a string "YYYY-MM-DD"
@@ -36,18 +37,48 @@ const excelDateToString = (value) => {
   return "";
 };
 
+const ENTRADA_VACIA = {
+  actos: [{ acto: "", valorActo: "" }],
+  numeroEscritura: "",
+  fechaEscritura: "",
+  matricula: "",
+  notaDevolutiva: "NO",
+  motivo: "",
+};
+
 export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargados = 0 }) {
   const [escrituras, setEscrituras] = useState([]);
-  const [newEntry, setNewEntry] = useState({
-    acto: "",
-    numeroEscritura: "",
-    fechaEscritura: "",
-    matricula: "",
-    notaDevolutiva: "NO",
-    motivo: "",
-    valorActo: "",
-  });
+  // Una escritura puede traer VARIOS actos, así que el formulario guarda una
+  // lista y no un acto suelto. Empieza con una línea en blanco: el caso
+  // corriente sigue siendo un solo acto y no debe costar más que antes.
+  const [newEntry, setNewEntry] = useState({ ...ENTRADA_VACIA });
   const [editingItem, setEditingItem] = useState(null);
+  // Escrituras cuyo detalle de actos está abierto en la tabla (ids).
+  const [desplegadas, setDesplegadas] = useState([]);
+
+  const alternarDespliegue = (id) => {
+    setDesplegadas((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  };
+
+  // ── Edición de la lista de actos del formulario ───────────────────────────
+  const cambiarActo = (indice, campo, valor) => {
+    setNewEntry((previo) => ({
+      ...previo,
+      actos: previo.actos.map((a, i) => (i === indice ? { ...a, [campo]: valor } : a)),
+    }));
+  };
+  const agregarLineaActo = () => {
+    setNewEntry((previo) => ({ ...previo, actos: [...previo.actos, { acto: "", valorActo: "" }] }));
+  };
+  const quitarLineaActo = (indice) => {
+    setNewEntry((previo) => ({
+      // Nunca se queda sin ninguna: si se quita la última, queda una en blanco.
+      ...previo,
+      actos: previo.actos.length > 1
+        ? previo.actos.filter((_, i) => i !== indice)
+        : [{ acto: "", valorActo: "" }],
+    }));
+  };
 
   // ── Envío a la notaría ────────────────────────────────────────────────────
   // Un mismo soporte puede amparar varias escrituras, así que primero se
@@ -305,14 +336,19 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
   }, []);
 
   const addOrUpdateEntry = async () => {
-    if (!newEntry.acto.trim() || !newEntry.numeroEscritura.trim()) {
-      alert("Acto y Número de Escritura son obligatorios");
+    // camposDeActos descarta las líneas en blanco, así que basta con mirar lo
+    // que queda: si no queda ninguna, no hay acto que valga.
+    const { actos: _sinUsar, ...restoEntrada } = newEntry;
+    const campos = camposDeActos(newEntry.actos);
+    if (campos.actos.length === 0 || !newEntry.numeroEscritura.trim()) {
+      alert("Hace falta al menos un acto y el número de escritura");
       return;
     }
     try {
-      // El valor se digita con puntos ("60.000.000") pero se guarda como
-      // número, que es lo que el liquidador espera recibir.
-      const datos = { ...newEntry, valorActo: parseNumberWithoutPoints(newEntry.valorActo) };
+      // camposDeActos deja la lista Y los campos viejos (acto, valorActo) ya
+      // como número. Los campos viejos se siguen escribiendo para no romper lo
+      // que los lee: la búsqueda, el orden y las APK ya instaladas.
+      const datos = { ...restoEntrada, ...campos };
       if (editingItem) {
         await updateDoc(doc(db, "escrituras", editingItem.id), datos);
         alert("Registro actualizado exitosamente");
@@ -325,7 +361,7 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
         await addDoc(collection(db, "escrituras"), newItem);
         alert("Registro agregado exitosamente");
       }
-      setNewEntry({ acto: "", numeroEscritura: "", fechaEscritura: "", matricula: "", notaDevolutiva: "NO", motivo: "", valorActo: "" });
+      setNewEntry({ ...ENTRADA_VACIA, actos: [{ acto: "", valorActo: "" }] });
       setEditingItem(null);
     } catch (error) {
       console.error("Error al guardar:", error);
@@ -335,8 +371,12 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
 
   const editEntry = (r) => {
     setNewEntry({
-      valorActo: r.valorActo ? formatNumberWithPoints(String(r.valorActo)) : "",
-      acto: r.acto,
+      // actosDeEscritura sabe leer tanto la lista nueva como las escrituras
+      // viejas de un solo acto, así que aquí no hay que preguntar cuál es cuál.
+      actos: actosDeEscritura(r).map((a) => ({
+        acto: a.acto,
+        valorActo: a.valorActo ? formatNumberWithPoints(String(a.valorActo)) : "",
+      })),
       numeroEscritura: r.numeroEscritura,
       fechaEscritura: r.fechaEscritura,
       matricula: r.matricula,
@@ -344,6 +384,7 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
       motivo: r.motivo || "",
     });
     setEditingItem(r);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Al borrar una escritura hay que llevarse también sus archivos de Storage.
@@ -425,10 +466,17 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
     // Se exporta LO QUE SE ESTÁ VIENDO, con el filtro puesto: así se puede
     // mandar a Florencia justo el grupo que interesa sin borrar filas a mano.
     // El ITEM del Excel es la misma posición que se ve en pantalla.
-    const data = visibles.map((r, posicion) => ({
+    //
+    // UNA LÍNEA POR ACTO: una escritura con tres actos sale en tres líneas,
+    // repitiendo número, fecha y matrícula, con un acto y su valor en cada
+    // una. Así se puede filtrar y sumar por acto en Excel, que es como está
+    // armada la relación de ingresos. Las tres comparten el mismo ITEM, para
+    // que se vea que son la misma escritura y no tres distintas.
+    const data = visibles.flatMap((r, posicion) =>
+      actosDeEscritura(r).map((unActo) => ({
       ITEM: posicion + 1,
-      ACTO: r.acto,
-      "VALOR ACTO": r.valorActo || 0,
+      ACTO: unActo.acto,
+      "VALOR ACTO": unActo.valorActo || 0,
       "NUMERO ESCRITURA": r.numeroEscritura,
       "FECHA ESCRITURA": r.fechaEscritura,
       MATRICULA: r.matricula,
@@ -444,7 +492,8 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
       "ENVIADO POR": r.enviadoPor || "",
       SOPORTE: r.soporteNombre || "",
       "ENLACE DEL SOPORTE": r.soporteURL || "",
-    }));
+      }))
+    );
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Escrituras Pendientes");
@@ -490,24 +539,66 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
       const cNOTA = col("NOTA DEVOLUTIVA", 5);
       const cVALOR = col("VALOR ACTO", -1);
 
-      let contador = 1;
+      // ── Varias líneas del Excel = UNA escritura con varios actos ───────
+      // La exportación saca una línea por acto, repitiendo número y fecha. Al
+      // volver a importar hay que rearmarlas, o una escritura de tres actos
+      // entraría como tres escrituras distintas y la mora se cobraría tres
+      // veces.
+      //
+      // Se agrupa por número + fecha, no solo por número: los números de
+      // escritura se repiten de un año a otro.
+      const cMOTIVO = col("MOTIVO", 6);
+      const porEscritura = new Map();
+
       for (let i = 1; i < data.length; i++) {
         const row = data[i];
         if (!row || row.length < 2) continue;
-        const newItem = {
+
+        const numeroEscritura = row[cNUM] ? String(row[cNUM]).trim() : "";
+        const fechaEscritura = excelDateToString(row[cFECHA]);
+        const acto = row[cACTO] ? String(row[cACTO]).trim() : "";
+        const valorActo = cVALOR >= 0 ? parseNumberWithoutPoints(String(row[cVALOR] ?? "")) : 0;
+
+        // Sin número no se puede agrupar con nada: cada línea va sola, con una
+        // clave que no choca con ninguna otra.
+        const clave = numeroEscritura ? `${numeroEscritura}||${fechaEscritura}` : `__suelta__${i}`;
+
+        if (!porEscritura.has(clave)) {
+          porEscritura.set(clave, {
+            numeroEscritura,
+            fechaEscritura,
+            matricula: row[cMAT] ? String(row[cMAT]) : "",
+            notaDevolutiva: row[cNOTA] ? String(row[cNOTA]) : "NO",
+            motivo: row[cMOTIVO] ? String(row[cMOTIVO]) : "",
+            actos: [],
+          });
+        }
+        const escritura = porEscritura.get(clave);
+        if (acto) escritura.actos.push({ acto, valorActo });
+        // Los datos comunes se completan con la primera línea que los traiga:
+        // en un archivo hecho a mano puede que solo la primera los tenga.
+        if (!escritura.matricula && row[cMAT]) escritura.matricula = String(row[cMAT]);
+        if (!escritura.motivo && row[cMOTIVO]) escritura.motivo = String(row[cMOTIVO]);
+      }
+
+      let contador = 1;
+      let conVarios = 0;
+      for (const escritura of porEscritura.values()) {
+        const { actos, ...resto } = escritura;
+        if (actos.length > 1) conVarios++;
+        await addDoc(collection(db, "escrituras"), {
           item: maxItem + contador,
-          acto: row[cACTO] ? String(row[cACTO]) : "",
-          numeroEscritura: row[cNUM] ? String(row[cNUM]) : "",
-          fechaEscritura: excelDateToString(row[cFECHA]),
-          matricula: row[cMAT] ? String(row[cMAT]) : "",
-          valorActo: cVALOR >= 0 ? parseNumberWithoutPoints(String(row[cVALOR] ?? "")) : 0,
-          notaDevolutiva: row[cNOTA] ? String(row[cNOTA]) : "NO",
-          motivo: row[col("MOTIVO", 6)] ? String(row[col("MOTIVO", 6)]) : "",
-        };
-        await addDoc(collection(db, "escrituras"), newItem);
+          ...resto,
+          ...camposDeActos(actos),
+        });
         contador++;
       }
-      alert("Importación completada.");
+
+      alert(
+        `Importación completada: ${contador - 1} ` +
+        `${contador - 1 === 1 ? "escritura" : "escrituras"}` +
+        (conVarios > 0 ? `, ${conVarios} con varios actos.` : ".")
+      );
       e.target.value = "";
     };
     reader.readAsBinaryString(file);
@@ -525,44 +616,85 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
           <h3 style={{ color: "#166534", marginBottom: "1rem" }}>
             {editingItem ? "Editar Escritura" : "Agregar Nueva Escritura"}
           </h3>
+          {/* ── ACTOS DE LA ESCRITURA ────────────────────────────────────
+              Una escritura puede contener varios actos: una compraventa que
+              además cancela una hipoteca son dos, y cada uno paga su tarifa.
+              Antes solo cabía uno, y quien tenía varios escribía "VARIOS", que
+              no es un acto y por eso no se podía liquidar.
+
+              El acto se ELIGE de la lista, porque la liquidación solo entiende
+              los tipos con tarifa. Pero la lista NUNCA bloquea el registro: con
+              «Otro» se escribe a mano. Registrar la escritura es lo primero;
+              que además se liquide sola es un extra. */}
+          <div style={{ marginBottom: "1.2rem", padding: "1rem 1.1rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px" }}>
+            <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "0.7rem" }}>
+              Actos de la escritura
+            </div>
+
+            {newEntry.actos.map((linea, i) => (
+              <div key={i} style={{ display: "flex", gap: "0.6rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.6rem" }}>
+                <span style={{ color: "#6b7280", fontSize: "0.8rem", width: "16px" }}>{i + 1}</span>
+                <select
+                  value={esActoDeLaLista(linea.acto) || !linea.acto ? linea.acto : "__otro__"}
+                  onChange={(e) => cambiarActo(i, "acto", e.target.value === "__otro__" ? " " : e.target.value)}
+                  style={{ flex: "2 1 240px", padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px", background: "white" }}
+                >
+                  <option value="">Acto…</option>
+                  {ACTOS_PARA_ESCRITURAS.map((t) => (
+                    <option key={t} value={t}>{t}{sePuedeLiquidar(t) ? "" : " · no se liquida"}</option>
+                  ))}
+                  <option value="__otro__">Otro — escribirlo a mano</option>
+                </select>
+
+                {linea.acto !== "" && !esActoDeLaLista(linea.acto) && (
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Escribe el acto"
+                    value={linea.acto.trim() === "" ? "" : linea.acto}
+                    onChange={(e) => cambiarActo(i, "acto", e.target.value)}
+                    style={{ flex: "2 1 200px", padding: "12px", fontSize: "1rem", border: "1px solid #d97706", borderRadius: "8px" }}
+                  />
+                )}
+
+                <input
+                  type="text"
+                  placeholder="Valor del acto (opcional)"
+                  value={linea.valorActo || ""}
+                  onChange={(e) => cambiarActo(i, "valorActo", formatNumberWithPoints(e.target.value.replace(/[^\d]/g, "")))}
+                  style={{ flex: "1 1 170px", padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }}
+                />
+
+                <button
+                  onClick={() => quitarLineaActo(i)}
+                  title="Quitar este acto"
+                  style={{ background: "none", border: "none", color: "#b91c1c", cursor: "pointer", fontSize: "0.82rem", textDecoration: "underline", padding: "4px 6px" }}
+                >
+                  quitar
+                </button>
+              </div>
+            ))}
+
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap", marginTop: "0.4rem" }}>
+              <button
+                onClick={agregarLineaActo}
+                style={{ padding: "8px 16px", background: "#166534", color: "white", border: "none", borderRadius: "7px", cursor: "pointer", fontSize: "0.85rem" }}
+              >
+                + Agregar otro acto
+              </button>
+              {newEntry.actos.filter((a) => a.acto.trim()).length > 1 && (
+                <span style={{ fontSize: "0.82rem", color: "#065f46" }}>
+                  Suma de las cuantías:{" "}
+                  <strong>
+                    {formatCOP(newEntry.actos.reduce((t, a) => t + parseNumberWithoutPoints(a.valorActo || "0"), 0))}
+                  </strong>
+                  {" · "}van juntos como una sola escritura, con una sola mora
+                </span>
+              )}
+            </div>
+          </div>
+
           <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-            {/* El acto se ELIGE. La liquidación solo entiende estos once
-                tipos, cada uno con su tarifa: escrito a mano, el botón de
-                liquidar no sabría qué cobrar. */}
-            {/* La lista trae los tipos que la liquidación sabe calcular, pero
-                NUNCA bloquea el registro: con «Otro» se escribe el acto a mano.
-                Registrar la escritura es lo primero; que además se pueda
-                liquidar sola es un extra. */}
-            <select
-              value={esActoDeLaLista(newEntry.acto) || !newEntry.acto ? newEntry.acto : "__otro__"}
-              onChange={(e) =>
-                setNewEntry({ ...newEntry, acto: e.target.value === "__otro__" ? " " : e.target.value })
-              }
-              style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px", background: "white" }}
-            >
-              <option value="">Acto…</option>
-              {ACTOS_PARA_ESCRITURAS.map((t) => (
-                <option key={t} value={t}>{t}{sePuedeLiquidar(t) ? "" : " · no se liquida"}</option>
-              ))}
-              <option value="__otro__">Otro — escribirlo a mano</option>
-            </select>
-            {newEntry.acto !== "" && !esActoDeLaLista(newEntry.acto) && (
-              <input
-                type="text"
-                autoFocus
-                placeholder="Escribe el acto"
-                value={newEntry.acto.trim() === "" ? "" : newEntry.acto}
-                onChange={(e) => setNewEntry({ ...newEntry, acto: e.target.value })}
-                style={{ padding: "12px", fontSize: "1rem", border: "1px solid #d97706", borderRadius: "8px" }}
-              />
-            )}
-            <input
-              type="text"
-              placeholder="Valor del acto (opcional)"
-              value={newEntry.valorActo || ""}
-              onChange={(e) => setNewEntry({ ...newEntry, valorActo: formatNumberWithPoints(e.target.value.replace(/[^\d]/g, "")) })}
-              style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }}
-            />
             <input type="text" placeholder="N° Escritura" value={newEntry.numeroEscritura} onChange={(e) => setNewEntry({ ...newEntry, numeroEscritura: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
             <input type="date" value={newEntry.fechaEscritura} onChange={(e) => setNewEntry({ ...newEntry, fechaEscritura: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px", width: "100%" }} />
             <input type="text" placeholder="Matrícula" value={newEntry.matricula} onChange={(e) => setNewEntry({ ...newEntry, matricula: e.target.value })} style={{ padding: "12px", fontSize: "1rem", border: "1px solid #ddd", borderRadius: "8px" }} />
@@ -578,7 +710,7 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
               {editingItem ? "Guardar Cambios" : "Agregar"}
             </button>
             {editingItem && (
-              <button onClick={() => { setEditingItem(null); setNewEntry({ acto: "", numeroEscritura: "", fechaEscritura: "", matricula: "", notaDevolutiva: "NO", motivo: "" }); }} style={{ padding: "12px 24px", background: "#6b7280", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}>
+              <button onClick={() => { setEditingItem(null); setNewEntry({ ...ENTRADA_VACIA, actos: [{ acto: "", valorActo: "" }] }); }} style={{ padding: "12px 24px", background: "#6b7280", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}>
                 Cancelar Edición
               </button>
             )}
@@ -813,9 +945,14 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
           </tr>
         </thead>
         <tbody>
-          {visibles.map((r, posicion) => (
+          {visibles.map((r, posicion) => {
+            const susActos = actosDeEscritura(r);
+            const varios = susActos.length > 1;
+            const abierta = desplegadas.includes(r.id);
+            const principal = susActos[0].acto;
+            return (
+            <Fragment key={r.id}>
             <tr
-              key={r.id}
               // El verde (enviada) manda sobre el amarillo (en registro):
               // es el estado más avanzado del recorrido.
               className={r.enviado ? "fila-enviada" : r.enRegistro ? "fila-en-registro" : undefined}
@@ -823,26 +960,48 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
             >
               <td style={{ padding: "12px 10px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{posicion + 1}</td>
               <td className="celda-texto" style={{ padding: "12px 10px", whiteSpace: "normal", wordBreak: "break-word", lineHeight: "1.4" }}>
-                {r.acto}
-                {r.valorActo > 0 && (
+                {principal}
+                {susActos[0].valorActo > 0 && (
                   <>
                     <br />
                     <small style={{ color: "#166534", fontWeight: 600, fontSize: "0.78rem" }}>
-                      {formatCOP(r.valorActo)}
+                      {formatCOP(susActos[0].valorActo)}
                     </small>
                   </>
                 )}
-                {!sePuedeLiquidar(r.acto) && (
+                {!sePuedeLiquidar(principal) && (
                   <>
                     <br />
                     <small
-                      title={esActoDeLaLista(r.acto)
+                      title={esActoDeLaLista(principal)
                         ? "Este acto se registra pero todavía no se puede liquidar: falta un recibo que confirme su tarifa."
                         : "Este acto se escribió a mano y no está en la lista. Edítalo y elige el acto si quieres poder liquidarlo."}
                       style={{ color: "#b45309", fontSize: "0.72rem" }}
                     >
-                      {esActoDeLaLista(r.acto) ? "⚠ no se liquida" : "⚠ acto sin tipo"}
+                      {esActoDeLaLista(principal) ? "⚠ no se liquida" : "⚠ acto sin tipo"}
                     </small>
+                  </>
+                )}
+
+                {/* La pastilla solo aparece si de verdad hay más de un acto:
+                    una escritura corriente se sigue viendo igual que siempre. */}
+                {varios && (
+                  <>
+                    <br />
+                    <button
+                      onClick={() => alternarDespliegue(r.id)}
+                      title="Ver los actos que contiene esta escritura"
+                      style={{
+                        marginTop: "5px", display: "inline-flex", alignItems: "center", gap: "5px",
+                        background: abierta ? "#166534" : "#ecfdf5",
+                        border: `1px solid ${abierta ? "#166534" : "#6ee7b7"}`,
+                        color: abierta ? "white" : "#065f46",
+                        borderRadius: "999px", padding: "2px 10px", fontSize: "0.74rem",
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      {abierta ? "▾" : "▸"} {susActos.length} actos en esta escritura
+                    </button>
                   </>
                 )}
               </td>
@@ -1024,7 +1183,61 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
                 </td>
               )}
             </tr>
-          ))}
+
+            {/* Los actos, dentro de la misma escritura. Es una fila aparte
+                porque HTML no deja meter una tabla en una celda sin romper la
+                alineación de las columnas, pero se lee como parte de la fila
+                de arriba: mismo fondo, sin separador. */}
+            {varios && abierta && (
+              <tr>
+                <td colSpan={11} style={{ padding: 0, background: "#f0fdf4", borderBottom: "2px solid #bbf7d0", textAlign: "left" }}>
+                  <div style={{ padding: "14px 18px" }}>
+                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#065f46", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "9px" }}>
+                      Actos de la escritura N° {r.numeroEscritura || "—"}
+                    </div>
+                    {susActos.map((a, i) => (
+                      <div
+                        key={i}
+                        style={{ display: "flex", alignItems: "center", gap: "10px", padding: "7px 0", borderBottom: i < susActos.length - 1 ? "1px dashed #bbf7d0" : "none" }}
+                      >
+                        <span style={{ color: "#6b7280", fontSize: "0.78rem", width: "16px" }}>{i + 1}</span>
+                        <span style={{ flex: 1 }}>
+                          {a.acto}
+                          {!sePuedeLiquidar(a.acto) && (
+                            <small style={{ color: "#b45309", fontSize: "0.72rem", marginLeft: "8px" }}>
+                              ⚠ no se liquida
+                            </small>
+                          )}
+                        </span>
+                        <span style={{ fontWeight: 700, color: "#166534" }}>
+                          {a.valorActo > 0 ? formatCOP(a.valorActo) : "sin cuantía"}
+                        </span>
+                      </div>
+                    ))}
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px", paddingTop: "9px", borderTop: "2px solid #86efac", fontWeight: 700, color: "#065f46" }}>
+                      <span>Suma de las cuantías</span>
+                      <span>{formatCOP(cuantiaTotal(r))}</span>
+                    </div>
+                    <p style={{ margin: "12px 0 0", background: "#fffbeb", border: "1px solid #fcd34d", color: "#92400e", borderRadius: "8px", padding: "9px 12px", fontSize: "0.8rem", lineHeight: 1.5 }}>
+                      Al liquidar, los {susActos.length} van juntos como <strong>una sola escritura</strong>:
+                      cada uno paga su tarifa, pero la mora se calcula una sola vez sobre el total,
+                      igual que en el recibo de Hacienda.
+                    </p>
+                    {isAdmin && (
+                      <button
+                        onClick={() => editEntry(r)}
+                        style={{ marginTop: "10px", padding: "7px 15px", background: "#d97706", color: "white", border: "none", borderRadius: "7px", cursor: "pointer", fontSize: "0.82rem", display: "block" }}
+                      >
+                        ✏️ Editar los actos
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            )}
+            </Fragment>
+            );
+          })}
         </tbody>
       </table>
       </div>

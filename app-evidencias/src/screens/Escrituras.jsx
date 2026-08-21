@@ -11,7 +11,8 @@ import {
   diasHabilesDesde,
   DIAS_HABILES_REGISTRO,
 } from '../lib/escrituras.js';
-import { ACTOS_PARA_ESCRITURAS, TIPOS_DE_ACTO, sePuedeLiquidar, esActoDeLaLista, actosParaLiquidar } from '@calculo/actoDesdeTexto.js';
+import { ACTOS_PARA_ESCRITURAS, TIPOS_DE_ACTO, sePuedeLiquidar, esActoDeLaLista } from '@calculo/actoDesdeTexto.js';
+import { actosParaLiquidar, actosDeEscritura, tieneVariosActos } from '@calculo/actosDeEscritura.js';
 import { formatNumberWithPoints } from '@calculo/formatters.js';
 import { tomarFoto, prepararPagina, fotosAPdf, nombreEscaneo } from '../lib/escaner.js';
 import PaginasEscaneadas from '../componentes/PaginasEscaneadas.jsx';
@@ -23,14 +24,17 @@ const FILTROS = [
   { id: 'todas', texto: 'Todas' },
 ];
 
+// Una escritura puede traer VARIOS actos: una compraventa que además cancela
+// una hipoteca son dos, y cada uno paga su tarifa. Por eso el formulario lleva
+// una lista y no un acto suelto. Empieza con una sola línea: el caso corriente
+// sigue siendo un acto y no debe costar más que antes.
 const ENTRADA_VACIA = {
-  acto: TIPOS_DE_ACTO[0],
+  actos: [{ acto: TIPOS_DE_ACTO[0], valorActo: '' }],
   numeroEscritura: '',
   fechaEscritura: '',
   matricula: '',
   notaDevolutiva: 'NO',
   motivo: '',
-  valorActo: '',
 };
 
 export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }) {
@@ -47,6 +51,35 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
   const [escaneo, setEscaneo] = useState(null);
   const [formulario, setFormulario] = useState(null); // datos de la escritura nueva
   const [guardando, setGuardando] = useState(false);
+  // Escrituras cuyo detalle de actos está abierto en la lista (ids).
+  const [desplegadas, setDesplegadas] = useState([]);
+
+  const alternarDespliegue = (id) => {
+    setDesplegadas((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  };
+
+  // ── Edición de la lista de actos del formulario ───────────────────────────
+  const cambiarActo = (indice, campo, valor) => {
+    setFormulario((previo) => ({
+      ...previo,
+      actos: previo.actos.map((a, i) => (i === indice ? { ...a, [campo]: valor } : a)),
+    }));
+  };
+  const agregarLineaActo = () => {
+    setFormulario((previo) => ({
+      ...previo,
+      actos: [...previo.actos, { acto: TIPOS_DE_ACTO[0], valorActo: '' }],
+    }));
+  };
+  const quitarLineaActo = (indice) => {
+    setFormulario((previo) => ({
+      // Nunca se queda sin ninguna: si se quita la última, queda una en blanco.
+      ...previo,
+      actos: previo.actos.length > 1
+        ? previo.actos.filter((_, i) => i !== indice)
+        : [{ acto: TIPOS_DE_ACTO[0], valorActo: '' }],
+    }));
+  };
   const inputArchivo = useRef(null);
   // A qué escritura pertenece el archivo que se está eligiendo (si es un recibo)
   const reciboPara = useRef(null);
@@ -70,7 +103,7 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
   const visibles = !texto
     ? porEstado
     : porEstado.filter((e) =>
-        [e.numeroEscritura, e.acto, e.matricula, e.motivo]
+        [e.numeroEscritura, e.matricula, e.motivo, ...actosDeEscritura(e).map((a) => a.acto)]
           .some((campo) => String(campo || '').toLowerCase().includes(texto))
       );
   const pendientes = escrituras.filter((e) => !e.enviado);
@@ -409,69 +442,84 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
               NUNCA impide registrar: con «Otro» el acto se escribe a mano.
               Anotar la escritura es lo primero; que además se pueda liquidar
               sola es un extra, no un requisito. */}
-          <div className="campo">
-            <label htmlFor="acto">Acto</label>
-            <select
-              id="acto"
-              value={esActoDeLaLista(formulario.acto) ? formulario.acto : '__otro__'}
-              onChange={(ev) =>
-                setFormulario({
-                  ...formulario,
-                  acto: ev.target.value === '__otro__' ? ' ' : ev.target.value,
-                })
-              }
-              autoFocus
-            >
-              {ACTOS_PARA_ESCRITURAS.map((t) => (
-                <option key={t} value={t}>
-                  {t}{sePuedeLiquidar(t) ? '' : ' · no se liquida'}
-                </option>
-              ))}
-              <option value="__otro__">Otro — escribirlo a mano</option>
-            </select>
-            {esActoDeLaLista(formulario.acto) && !sePuedeLiquidar(formulario.acto) && (
-              <small className="tenue">
-                Se registra normalmente, pero todavía no entra en el botón de
-                liquidar: falta un recibo que confirme su tarifa.
-              </small>
-            )}
-            {!esActoDeLaLista(formulario.acto) && (
-              <>
-                <input
-                  style={{ marginTop: '0.5rem' }}
-                  value={formulario.acto.trim() === '' ? '' : formulario.acto}
-                  onChange={(ev) => setFormulario({ ...formulario, acto: ev.target.value })}
-                  placeholder="Escribe el acto"
-                />
+          {formulario.actos.map((linea, i) => (
+            <div className="campo" key={i}>
+              <label htmlFor={`acto-${i}`}>
+                {formulario.actos.length > 1 ? `Acto ${i + 1} de ${formulario.actos.length}` : 'Acto'}
+              </label>
+              <select
+                id={`acto-${i}`}
+                value={esActoDeLaLista(linea.acto) ? linea.acto : '__otro__'}
+                onChange={(ev) =>
+                  cambiarActo(i, 'acto', ev.target.value === '__otro__' ? ' ' : ev.target.value)
+                }
+                autoFocus={i === 0}
+              >
+                {ACTOS_PARA_ESCRITURAS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}{sePuedeLiquidar(t) ? '' : ' · no se liquida'}
+                  </option>
+                ))}
+                <option value="__otro__">Otro — escribirlo a mano</option>
+              </select>
+              {esActoDeLaLista(linea.acto) && !sePuedeLiquidar(linea.acto) && (
                 <small className="tenue">
-                  Se guarda tal cual. Como no está en la lista, esta escritura no
-                  entrará en el botón de liquidar hasta que le elijas un tipo.
+                  Se registra normalmente, pero todavía no entra en el botón de
+                  liquidar: falta un recibo que confirme su tarifa.
                 </small>
-              </>
-            )}
-          </div>
+              )}
+              {!esActoDeLaLista(linea.acto) && (
+                <>
+                  <input
+                    style={{ marginTop: '0.5rem' }}
+                    value={linea.acto.trim() === '' ? '' : linea.acto}
+                    onChange={(ev) => cambiarActo(i, 'acto', ev.target.value)}
+                    placeholder="Escribe el acto"
+                  />
+                  <small className="tenue">
+                    Se guarda tal cual. Como no está en la lista, este acto no
+                    entrará en el botón de liquidar hasta que le elijas un tipo.
+                  </small>
+                </>
+              )}
+
+              {/* La cuantía de ESTE acto. Si todavía no se sabe, se deja en
+                  blanco y queda en $0 hasta que se complete. */}
+              <input
+                style={{ marginTop: '0.5rem' }}
+                inputMode="numeric"
+                value={linea.valorActo}
+                onChange={(ev) =>
+                  cambiarActo(i, 'valorActo', formatNumberWithPoints(ev.target.value.replace(/[^\d]/g, '')))
+                }
+                placeholder="Valor del acto · déjalo vacío si aún no se sabe"
+              />
+
+              {formulario.actos.length > 1 && (
+                <button
+                  type="button"
+                  className="boton fantasma"
+                  style={{ marginTop: '0.4rem' }}
+                  onClick={() => quitarLineaActo(i)}
+                >
+                  Quitar este acto
+                </button>
+              )}
+            </div>
+          ))}
+
+          <button type="button" className="boton gris ancho" onClick={agregarLineaActo}>
+            + Agregar otro acto a esta escritura
+          </button>
+          {formulario.actos.length > 1 && (
+            <p className="tenue centrado-texto">
+              Los {formulario.actos.length} van juntos como una sola escritura:
+              cada uno paga su tarifa, pero la mora se cobra una sola vez.
+            </p>
+          )}
           {campo('numeroEscritura', 'N° de escritura', { placeholder: 'Ej: 077', inputMode: 'numeric' })}
           {campo('fechaEscritura', 'Fecha de la escritura', { type: 'date' })}
           {campo('matricula', 'Matrícula inmobiliaria', { placeholder: 'Ej: 420-113130' })}
-
-          {/* La cuantía. Con el acto y la fecha ya se puede liquidar desde
-              aquí sin volver a escribir nada. Si todavía no se sabe, se deja
-              en blanco y queda en $0 hasta que se complete. */}
-          <div className="campo">
-            <label htmlFor="valorActo">Valor del acto</label>
-            <input
-              id="valorActo"
-              inputMode="numeric"
-              value={formulario.valorActo}
-              onChange={(ev) =>
-                setFormulario({
-                  ...formulario,
-                  valorActo: formatNumberWithPoints(ev.target.value.replace(/[^\d]/g, '')),
-                })
-              }
-              placeholder="Ej: 64.000.000 · déjalo vacío si aún no se sabe"
-            />
-          </div>
 
           <div className="campo">
             <label htmlFor="nota">¿Tiene nota devolutiva?</label>
@@ -617,10 +665,49 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
                     )}
                     <div className="escritura-titulo">
                       <strong>N° {e.numeroEscritura}</strong>
-                      <small>{e.acto}</small>
+                      <small>{actosDeEscritura(e)[0].acto}</small>
                     </div>
                     {e.notaDevolutiva === 'SI' && <span className="etiqueta-roja">Nota dev.</span>}
                   </div>
+
+                  {/* Los actos que contiene. La pastilla solo sale si de
+                      verdad hay más de uno: una escritura corriente se sigue
+                      viendo igual que siempre. */}
+                  {tieneVariosActos(e) && (
+                    <>
+                      <button
+                        className="pastilla-actos"
+                        onClick={() => alternarDespliegue(e.id)}
+                      >
+                        {desplegadas.includes(e.id) ? '▾' : '▸'}{' '}
+                        {actosDeEscritura(e).length} actos en esta escritura
+                      </button>
+                      {desplegadas.includes(e.id) && (
+                        <div className="lista-actos">
+                          {actosDeEscritura(e).map((a, i) => (
+                            <div className="linea-acto" key={i}>
+                              <span className="numero">{i + 1}</span>
+                              <span className="nombre">
+                                {a.acto}
+                                {!sePuedeLiquidar(a.acto) && (
+                                  <small className="tenue"> ⚠ no se liquida</small>
+                                )}
+                              </span>
+                              <span className="plata">
+                                {a.valorActo > 0
+                                  ? `$ ${formatNumberWithPoints(String(a.valorActo))}`
+                                  : 'sin cuantía'}
+                              </span>
+                            </div>
+                          ))}
+                          <p className="tenue">
+                            Van juntos como una sola escritura: cada uno paga su
+                            tarifa, pero la mora se cobra una sola vez.
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
 
                   <div className="escritura-datos">
                     {e.fechaEscritura && <span>📅 {e.fechaEscritura}</span>}

@@ -7,12 +7,12 @@ import assert from "node:assert/strict";
 import {
   tipoDeActo,
   sePuedeLiquidar,
-  actosParaLiquidar,
   TIPOS_DE_ACTO,
   ACTOS_PARA_ESCRITURAS,
   ACTOS_SIN_TARIFA,
   esActoDeLaLista,
 } from "../src/utils/actoDesdeTexto.js";
+import { actosParaLiquidar } from "../src/utils/actosDeEscritura.js";
 
 test("los doce tipos se reconocen tal cual", () => {
   assert.equal(TIPOS_DE_ACTO.length, 12);

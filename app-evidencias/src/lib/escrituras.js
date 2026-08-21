@@ -15,6 +15,11 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage, auth } from '../firebase';
 import { archivosHuerfanos } from '@calculo/limpiezaArchivos.js';
+import { camposDeActos, soloDigitos } from '@calculo/actosDeEscritura.js';
+
+// soloDigitos vive ahora en el archivo compartido; se reexporta porque la
+// pantalla lo sigue importando de aquí.
+export { soloDigitos };
 
 const CARPETA_SOPORTES = 'soportes-escrituras';
 
@@ -30,7 +35,12 @@ export function escucharEscrituras(callback) {
 
 /** Agrega una escritura nueva, calculando el siguiente número de ítem. */
 export async function agregarEscritura(datos) {
-  if (!datos.acto?.trim()) throw new Error('Escribe el acto');
+  // Una escritura puede traer varios actos. camposDeActos descarta las líneas
+  // en blanco y devuelve tanto la lista nueva como los campos viejos
+  // (acto, valorActo), que se siguen escribiendo para que nada de lo que los
+  // lee —la búsqueda, el orden, una APK vieja instalada— se rompa.
+  const campos = camposDeActos(datos.actos || [{ acto: datos.acto, valorActo: datos.valorActo }]);
+  if (campos.actos.length === 0) throw new Error('Elige al menos un acto');
   if (!datos.numeroEscritura?.trim()) throw new Error('Escribe el número de escritura');
 
   const snap = await getDocs(collection(db, 'escrituras'));
@@ -40,35 +50,27 @@ export async function agregarEscritura(datos) {
 
   await addDoc(collection(db, 'escrituras'), {
     item: maxItem + 1,
-    acto: datos.acto.trim(),
     numeroEscritura: datos.numeroEscritura.trim(),
     fechaEscritura: datos.fechaEscritura || '',
     matricula: datos.matricula?.trim() || '',
     notaDevolutiva: datos.notaDevolutiva || 'NO',
     motivo: datos.motivo?.trim() || '',
-    // Cuantía del acto. Es lo que faltaba para poder liquidar desde aquí:
-    // el acto y la fecha ya estaban, el valor no. Las escrituras guardadas
-    // antes no lo traen y se leen como 0, sin necesidad de convertir nada.
-    valorActo: soloDigitos(datos.valorActo),
+    ...campos,
     enviado: false,
   });
 }
 
-/** Deja solo los dígitos de lo que se escribió: "60.000.000" → 60000000. */
-export function soloDigitos(texto) {
-  const n = parseInt(String(texto ?? '').replace(/\D/g, ''), 10);
-  return Number.isFinite(n) ? n : 0;
-}
-
 /**
- * Cambia la cuantía de una escritura ya guardada.
+ * Cambia los actos de una escritura ya guardada.
  *
- * Sirve para completar las que quedaron sin valor, que son todas las
- * anteriores a este cambio.
+ * Sirve para desglosar las que quedaron como "VARIOS" y para completar las
+ * que no tienen cuantía, que son todas las anteriores a este cambio.
  */
-export async function actualizarValorActo(escritura, valor) {
+export async function actualizarActos(escritura, actos) {
   if (!escritura?.id) throw new Error('Escritura no válida');
-  await updateDoc(doc(db, 'escrituras', escritura.id), { valorActo: soloDigitos(valor) });
+  const campos = camposDeActos(actos);
+  if (campos.actos.length === 0) throw new Error('Elige al menos un acto');
+  await updateDoc(doc(db, 'escrituras', escritura.id), campos);
 }
 
 /**
