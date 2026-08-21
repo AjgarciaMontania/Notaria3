@@ -101,4 +101,22 @@ export const ACTOS_CONFIG = {
     oripCount: 1,
     honorarioContable: true,
   },
+  // Constitución de patrimonio de familia (Ley 70 de 1931 / Ley 495 de 1999).
+  //
+  // Se cobra como ACTO SIN CUANTÍA en las dos entidades. No sale de un recibo
+  // —en los 143 folios de ingresos de 2025 y 2026 no hay ninguno—: lo confirmó
+  // la notaría el 21/08/2026 tras averiguarlo, y así quedó configurado.
+  //
+  //   ORIP: un acto sin cuantía ($30.100 + el 2%, como los demás).
+  //   Tributaria: tarifa mínima de acto sin cuantía ($233.500).
+  //   Honorario de gestión: SÍ, igual que la cancelación de enajenación.
+  //
+  // Si algún día aparece un recibo que diga otra cosa, este es el sitio donde
+  // se corrige, y las pruebas de pruebas/liquidacion.test.mjs lo respaldan.
+  "CONSTITUCIÓN PATRIMONIO DE FAMILIA": {
+    tributariaMinima: true,
+    oripTipo: "sin_cuantia",
+    oripCount: 1,
+    honorarioContable: true,
+  },
 };

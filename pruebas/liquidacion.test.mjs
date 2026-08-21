@@ -278,3 +278,62 @@ test('los retiros se cobran por tramo empezado', () => {
   assert.equal(totales.retiros % TARIFAS_BASE.retiroValor, 0, 'los retiros deben ser múltiplo del valor unitario');
   assert.ok(totales.retiros > 0);
 });
+
+// ─── Constitución de patrimonio de familia ───────────────────────────────────
+//
+// OJO: estas pruebas NO salen de un recibo. En los 143 folios de las relaciones
+// de ingresos de 2025 y 2026 no hay ninguno de este acto. La notaría averiguó
+// el 21/08/2026 que se cobra como acto sin cuantía, y así quedó configurado.
+//
+// Por eso lo que se comprueba aquí es la EQUIVALENCIA: que liquide exactamente
+// igual que la cancelación de enajenación, que sí está respaldada por recibos
+// (actas 1150 y 1468). Si un día aparece un recibo de patrimonio de familia y
+// dice otra cosa, estas pruebas son las que hay que cambiar, y con el recibo
+// a la vista.
+
+test('el patrimonio de familia liquida igual que un acto sin cuantía con recibo', () => {
+  const patrimonio = liquidar(
+    [acto('CONSTITUCIÓN PATRIMONIO DE FAMILIA', '1150', '2025-10-06')],
+    opciones('2026-07-30')
+  ).totales;
+  const cancelacion = liquidar(
+    [acto('CANCELACIÓN ENAJENACIÓN', '1150', '2025-10-06')],
+    opciones('2026-07-30')
+  ).totales;
+
+  assert.equal(patrimonio.tributariaTotal, cancelacion.tributariaTotal);
+  assert.equal(patrimonio.oripTotal, cancelacion.oripTotal);
+  assert.equal(patrimonio.moraTotal, cancelacion.moraTotal);
+  assert.equal(patrimonio.honorarios, cancelacion.honorarios);
+  assert.equal(patrimonio.totalConsignar, cancelacion.totalConsignar);
+});
+
+test('y da los mismos importes del recibo del acta 1150', () => {
+  // Los mismos números que la cancelación sola de arriba: si alguien cambia la
+  // configuración del acto, esto se cae aquí y no en una liquidación real.
+  const { totales } = liquidar(
+    [acto('CONSTITUCIÓN PATRIMONIO DE FAMILIA', '1150', '2025-10-06')],
+    opciones('2026-07-30')
+  );
+  assert.equal(totales.tributariaTotal, 233500, 'tarifa mínima de acto sin cuantía');
+  assert.equal(totales.oripTotal, 30100, 'un acto sin cuantía en la ORIP');
+  assert.equal(totales.moraTotal, 37000);
+});
+
+test('cobra honorario de gestión, como se confirmó el 21/08/2026', () => {
+  const { totales } = liquidar(
+    [acto('CONSTITUCIÓN PATRIMONIO DE FAMILIA', '200', '2026-08-01')],
+    opciones('2026-08-14')
+  );
+  assert.equal(totales.honorarios, TARIFAS_BASE.honorarios.primero,
+    'siendo el primer acto de la liquidación debe cobrar el honorario del primero');
+});
+
+test('varios en una misma escritura se suben en la columna ACTOS', () => {
+  const uno = liquidar([acto('CONSTITUCIÓN PATRIMONIO DE FAMILIA', '201', '2026-08-01')], opciones('2026-08-14')).totales;
+  const dos = liquidar(
+    [{ ...acto('CONSTITUCIÓN PATRIMONIO DE FAMILIA', '201', '2026-08-01'), numActos: 2 }],
+    opciones('2026-08-14')
+  ).totales;
+  assert.equal(dos.oripTotal, uno.oripTotal * 2, 'la ORIP cobra por cada acto');
+});

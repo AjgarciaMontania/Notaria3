@@ -38,6 +38,9 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
   const [busqueda, setBusqueda] = useState('');
   const [seleccion, setSeleccion] = useState([]);
   const [aviso, setAviso] = useState(null);
+  // { actos, sinTipo }: lo que se va a liquidar y lo que queda por fuera,
+  // mientras se espera la confirmación.
+  const [porDecidir, setPorDecidir] = useState(null);
   const [trabajando, setTrabajando] = useState(null); // texto a mostrar mientras sube
   // { paginas: [], recibo?: escritura }. Si trae "recibo", lo escaneado es el
   // comprobante de pago de ESA escritura, no el soporte de envío del lote.
@@ -99,14 +102,21 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
       );
       return;
     }
+    // Si alguna queda por fuera hay que detenerse a decirlo AQUÍ. El aviso de
+    // siempre no sirve: al pasar a la pantalla de liquidar esta se desmonta y
+    // el mensaje se va con ella sin que nadie alcance a leerlo.
     if (sinTipo.length) {
-      const numeros = sinTipo.map((e) => e.numeroEscritura || '?').join(', ');
-      mostrar(
-        'error',
-        `Se llevaron ${actos.length}. Quedaron por fuera ${sinTipo.length} porque su acto no está en la lista: ${numeros}`,
-        11000
-      );
+      setPorDecidir({ actos, sinTipo });
+      return;
     }
+    setSeleccion([]);
+    onLiquidar?.(actos);
+  };
+
+  /** Confirma el paso a liquidar después de ver cuáles quedan por fuera. */
+  const confirmarLiquidar = () => {
+    const actos = porDecidir?.actos || [];
+    setPorDecidir(null);
     setSeleccion([]);
     onLiquidar?.(actos);
   };
@@ -535,10 +545,36 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
           </p>
         )}
 
-        {seleccion.length > 0 && (
+        {seleccion.length > 0 && !porDecidir && (
           <button className="boton principal ancho" onClick={liquidarSeleccionadas}>
             🧮 Liquidar {seleccion.length} {seleccion.length === 1 ? 'escritura' : 'escrituras'}
           </button>
+        )}
+
+        {porDecidir && (
+          <div className="aviso parcial">
+            <p>
+              Se llevan <strong>{porDecidir.actos.length}</strong>{' '}
+              {porDecidir.actos.length === 1 ? 'acto' : 'actos'} a liquidar.
+            </p>
+            <p>
+              ⚠ Quedan por fuera <strong>{porDecidir.sinTipo.length}</strong>{' '}
+              {porDecidir.sinTipo.length === 1 ? 'escritura' : 'escrituras'} porque su
+              acto no se puede liquidar:{' '}
+              <strong>
+                {porDecidir.sinTipo
+                  .map((e) => `N.º ${e.numeroEscritura || '?'} · ${e.acto || 'sin acto'}`)
+                  .join(' — ')}
+              </strong>
+              . Siguen en el panel, no se pierden.
+            </p>
+            <button className="boton principal ancho" onClick={confirmarLiquidar}>
+              Continuar y liquidar
+            </button>
+            <button className="boton gris ancho" onClick={() => setPorDecidir(null)}>
+              Cancelar
+            </button>
+          </div>
         )}
 
         <button className="boton gris ancho" onClick={() => setFormulario({ ...ENTRADA_VACIA })}>

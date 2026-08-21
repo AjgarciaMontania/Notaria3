@@ -18,7 +18,7 @@ import {
   hoyLocal,
 } from "../utils/soportesEscrituras";
 import { archivosHuerfanos } from "../utils/limpiezaArchivos";
-import { ACTOS_PARA_ESCRITURAS, sePuedeLiquidar, esActoDeLaLista } from "../utils/actoDesdeTexto";
+import { ACTOS_PARA_ESCRITURAS, sePuedeLiquidar, esActoDeLaLista, actosParaLiquidar } from "../utils/actoDesdeTexto";
 import { formatNumberWithPoints, parseNumberWithoutPoints, formatCOP } from "../utils/formatters";
 
 // Función auxiliar para convertir fecha de Excel a string "YYYY-MM-DD"
@@ -36,7 +36,7 @@ const excelDateToString = (value) => {
   return "";
 };
 
-export default function EscriturasPendientes({ isAdmin }) {
+export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargados = 0 }) {
   const [escrituras, setEscrituras] = useState([]);
   const [newEntry, setNewEntry] = useState({
     acto: "",
@@ -59,6 +59,9 @@ export default function EscriturasPendientes({ isAdmin }) {
   const [reciboPara, setReciboPara] = useState(null);   // { id, fecha } fila que está adjuntando
   const [editandoFecha, setEditandoFecha] = useState(null); // { id, fecha } fila corrigiendo la fecha
   const [aviso, setAviso] = useState(null);
+  // Actos listos para mandar a liquidar, esperando decisión porque la pestaña
+  // de Liquidación ya tiene una liquidación empezada.
+  const [porDecidir, setPorDecidir] = useState(null);
 
   const mostrarAviso = (tipo, texto, ms = 5000) => {
     setAviso({ tipo, texto });
@@ -131,6 +134,53 @@ export default function EscriturasPendientes({ isAdmin }) {
 
   const alternarTodas = () => {
     setSeleccion(todasPendientesMarcadas ? [] : pendientes.map((e) => e.id));
+  };
+
+  /**
+   * Pasa las escrituras marcadas a la pestaña de Liquidación Notarial.
+   *
+   * Es el mismo camino que hace la APK, con la misma función compartida, para
+   * que las dos armen la liquidación idéntica.
+   *
+   * Las que tengan un acto que la liquidación no reconoce NO se dejan caer en
+   * silencio: se dice cuáles quedaron por fuera.
+   */
+  const liquidarSeleccionadas = () => {
+    const elegidas = escrituras.filter((e) => seleccion.includes(e.id));
+    if (elegidas.length === 0) return;
+
+    const { actos, sinTipo } = actosParaLiquidar(elegidas);
+
+    if (actos.length === 0) {
+      mostrarAviso(
+        "error",
+        `Ninguna de las ${elegidas.length} se puede liquidar: su acto no está entre los que el sistema sabe calcular. Edítalas y elige el acto.`,
+        11000
+      );
+      return;
+    }
+
+    // Hay que detenerse a preguntar en dos casos: si algunas quedan por fuera
+    // —para que se sepa cuáles y no desaparezcan calladas— y si ya hay una
+    // liquidación empezada, para no borrarla sin avisar.
+    //
+    // El aviso NO puede ser el mensaje de siempre: al pasar a la otra pestaña
+    // este panel se desmonta y el mensaje se iría con él sin que nadie alcance
+    // a leerlo. Por eso se muestra aquí y se espera a que la persona decida.
+    if (sinTipo.length > 0 || actosCargados > 0) {
+      setPorDecidir({ actos, sinTipo });
+      return;
+    }
+    setSeleccion([]);
+    onLiquidar?.(actos, "reemplazar");
+  };
+
+  const resolverEnvio = (modo) => {
+    if (modo) {
+      setSeleccion([]);
+      onLiquidar?.(porDecidir.actos, modo);
+    }
+    setPorDecidir(null);
   };
 
   const adjuntarSoporte = async (e) => {
@@ -573,6 +623,20 @@ export default function EscriturasPendientes({ isAdmin }) {
           </span>
 
           <div className="action-buttons" style={{ display: "flex", gap: "0.8rem", flexWrap: "wrap" }}>
+            {/* Llevarlas a liquidar. Va con las demás acciones de la selección
+                y no en una barra aparte: dos barras verdes seguidas, casi
+                iguales, se leen como si una fuera un error. */}
+            <button
+              onClick={liquidarSeleccionadas}
+              disabled={subiendo || !!porDecidir}
+              style={{
+                padding: "12px 24px", background: "#0f766e", color: "white", border: "none",
+                borderRadius: "8px", cursor: subiendo || porDecidir ? "not-allowed" : "pointer",
+                fontWeight: 600, opacity: subiendo || porDecidir ? 0.6 : 1,
+              }}
+            >
+              🧮 Liquidar {seleccion.length === 1 ? "esta escritura" : "estas escrituras"}
+            </button>
             <label
               style={{
                 padding: "12px 24px", borderRadius: "8px", cursor: subiendo ? "wait" : "pointer",
@@ -592,6 +656,64 @@ export default function EscriturasPendientes({ isAdmin }) {
               onClick={() => setSeleccion([])}
               disabled={subiendo}
               style={{ padding: "12px 24px", background: "#6b7280", color: "white", border: "none", borderRadius: "8px", cursor: "pointer" }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Antes de salir de aquí: qué se lleva, qué se queda y qué pasa con lo
+          que ya estaba liquidándose */}
+      {porDecidir && (
+        <div style={{ margin: "1rem 0", padding: "1.1rem 1.2rem", background: "#fffbeb", border: "1px solid #d97706", borderRadius: "10px" }}>
+          <p style={{ margin: "0 0 0.6rem", color: "#92400e", fontSize: "0.94rem", lineHeight: 1.55 }}>
+            Se llevan <strong>{porDecidir.actos.length}</strong>{" "}
+            {porDecidir.actos.length === 1 ? "acto" : "actos"} a «Liquidación Notarial».
+          </p>
+
+          {porDecidir.sinTipo.length > 0 && (
+            <p style={{ margin: "0 0 0.9rem", color: "#92400e", fontSize: "0.9rem", lineHeight: 1.55, background: "#fef3c7", padding: "0.6rem 0.8rem", borderRadius: "8px" }}>
+              ⚠ Quedan por fuera <strong>{porDecidir.sinTipo.length}</strong>{" "}
+              {porDecidir.sinTipo.length === 1 ? "escritura" : "escrituras"}, porque
+              su acto no se puede liquidar:{" "}
+              <strong>
+                {porDecidir.sinTipo
+                  .map((e) => `N.º ${e.numeroEscritura || "?"} · ${e.acto || "sin acto"}`)
+                  .join(" — ")}
+              </strong>
+              . Siguen aquí en el panel, no se pierden.
+            </p>
+          )}
+
+          {actosCargados > 0 && (
+            <p style={{ margin: "0 0 0.9rem", color: "#92400e", fontSize: "0.94rem", lineHeight: 1.55 }}>
+              En «Liquidación Notarial» ya tienes <strong>{actosCargados}</strong>{" "}
+              {actosCargados === 1 ? "acto cargado" : "actos cargados"}. ¿Qué hago con
+              lo que hay?
+            </p>
+          )}
+
+          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+            <button
+              onClick={() => resolverEnvio("agregar")}
+              style={{ padding: "10px 20px", background: "#166534", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}
+            >
+              {actosCargados > 0
+                ? `Agregar · quedarían ${actosCargados + porDecidir.actos.length}`
+                : "Continuar y liquidar"}
+            </button>
+            {actosCargados > 0 && (
+              <button
+                onClick={() => resolverEnvio("reemplazar")}
+                style={{ padding: "10px 20px", background: "white", color: "#92400e", border: "1px solid #d97706", borderRadius: "8px", cursor: "pointer" }}
+              >
+                Reemplazar lo que hay
+              </button>
+            )}
+            <button
+              onClick={() => resolverEnvio(null)}
+              style={{ padding: "10px 20px", background: "none", color: "#78716c", border: "none", cursor: "pointer", textDecoration: "underline" }}
             >
               Cancelar
             </button>

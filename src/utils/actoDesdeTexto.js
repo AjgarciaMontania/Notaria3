@@ -30,20 +30,19 @@ export const TIPOS_DE_ACTO = Object.keys(ACTOS_CONFIG);
 /**
  * Actos que la notaría registra pero que TODAVÍA no se saben liquidar.
  *
- * Están aquí y NO en actosConfig.js a propósito. Poner uno allá le daría una
- * tarifa, y no la tenemos: se revisaron los 143 folios de las relaciones de
- * ingresos de 2025 y 2026 y no aparece ni un recibo de una constitución de
- * patrimonio de familia. Solo hay de CANCELACIÓN, que es otro acto.
+ * Hoy está vacía, y así debe quedarse mientras se pueda: lo normal es que un
+ * acto tenga su tarifa en actosConfig.js y se calcule.
  *
- * Al dejarlo fuera, el panel de Escrituras sí lo ofrece en la lista —para no
- * obligar a escribirlo a mano cada vez— pero el botón de liquidar lo aparta y
- * avisa, en vez de calcularlo en cero calladamente. Un cero silencioso en una
- * liquidación es un cobro mal hecho.
+ * Aquí va un acto solo cuando hay que poder REGISTRARLO en el panel de
+ * Escrituras pero todavía no se sabe cuánto cobra. Al estar fuera de
+ * actosConfig.js, el botón de liquidar lo aparta y avisa, en vez de calcularlo
+ * en cero calladamente. Un cero silencioso en una liquidación es un cobro mal
+ * hecho, y nadie lo nota hasta que ya se consignó.
  *
- * Para moverlo a la lista de los que sí se liquidan basta UN recibo: de ahí
- * salen la tarifa de la ORIP y la del impuesto de registro.
+ * Así estuvo la CONSTITUCIÓN PATRIMONIO DE FAMILIA hasta el 21/08/2026, cuando
+ * la notaría averiguó que se cobra como acto sin cuantía y pasó a actosConfig.
  */
-export const ACTOS_SIN_TARIFA = ["CONSTITUCIÓN PATRIMONIO DE FAMILIA"];
+export const ACTOS_SIN_TARIFA = [];
 
 /** Todo lo que se puede elegir en el panel de Escrituras Pendientes. */
 export const ACTOS_PARA_ESCRITURAS = [...TIPOS_DE_ACTO, ...ACTOS_SIN_TARIFA];

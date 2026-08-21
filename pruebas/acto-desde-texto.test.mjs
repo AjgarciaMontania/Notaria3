@@ -10,11 +10,12 @@ import {
   actosParaLiquidar,
   TIPOS_DE_ACTO,
   ACTOS_PARA_ESCRITURAS,
+  ACTOS_SIN_TARIFA,
   esActoDeLaLista,
 } from "../src/utils/actoDesdeTexto.js";
 
-test("los once tipos se reconocen tal cual", () => {
-  assert.equal(TIPOS_DE_ACTO.length, 11);
+test("los doce tipos se reconocen tal cual", () => {
+  assert.equal(TIPOS_DE_ACTO.length, 12);
   for (const t of TIPOS_DE_ACTO) assert.equal(tipoDeActo(t), t);
 });
 
@@ -77,32 +78,46 @@ test("una lista vacia o mal formada no revienta", () => {
   assert.deepEqual(actosParaLiquidar([null, undefined]), { actos: [], sinTipo: [] });
 });
 
-// ── Actos que se registran pero todavia no se liquidan ──────────────────────
-test("la constitucion de patrimonio de familia se puede REGISTRAR", () => {
+// ── Constitucion de patrimonio de familia ───────────────────────────────────
+// Estuvo apartada hasta el 21/08/2026 por no tener tarifa conocida. La notaria
+// averiguo que se cobra como acto sin cuantia, asi que ahora se registra Y se
+// liquida. Las pruebas de la tarifa en si estan en liquidacion.test.mjs.
+test("la constitucion de patrimonio de familia se registra y se liquida", () => {
   assert.ok(ACTOS_PARA_ESCRITURAS.includes("CONSTITUCIÓN PATRIMONIO DE FAMILIA"));
   assert.equal(esActoDeLaLista("CONSTITUCIÓN PATRIMONIO DE FAMILIA"), true);
   assert.equal(esActoDeLaLista("constitucion patrimonio de familia"), true);
+  assert.equal(sePuedeLiquidar("CONSTITUCIÓN PATRIMONIO DE FAMILIA"), true);
+  assert.equal(tipoDeActo("constitucion patrimonio de familia"), "CONSTITUCIÓN PATRIMONIO DE FAMILIA");
 });
 
-test("pero NO se liquida: no hay recibo que respalde su tarifa", () => {
-  // Si algun dia esto falla porque alguien la metio a actosConfig.js, que sea
-  // porque apareció un recibo. No por conveniencia.
-  assert.equal(sePuedeLiquidar("CONSTITUCIÓN PATRIMONIO DE FAMILIA"), false);
-  assert.equal(tipoDeActo("CONSTITUCIÓN PATRIMONIO DE FAMILIA"), null);
-  assert.ok(!TIPOS_DE_ACTO.includes("CONSTITUCIÓN PATRIMONIO DE FAMILIA"));
-});
-
-test("al liquidar queda apartada y avisada, no en cero", () => {
+test("al liquidar pasa completa, con su numero y su fecha", () => {
   const { actos, sinTipo } = actosParaLiquidar([
     { id: "p", acto: "CONSTITUCIÓN PATRIMONIO DE FAMILIA", numeroEscritura: "200", fechaEscritura: "2026-08-20" },
     { id: "q", acto: "COMPRAVENTA", numeroEscritura: "201", fechaEscritura: "2026-08-20", valorActo: 50000000 },
   ]);
-  assert.equal(actos.length, 1, "solo la compraventa se liquida");
-  assert.equal(sinTipo.length, 1);
-  assert.equal(sinTipo[0].numeroEscritura, "200");
+  assert.equal(actos.length, 2);
+  assert.equal(sinTipo.length, 0);
+  assert.equal(actos[0].acto, "CONSTITUCIÓN PATRIMONIO DE FAMILIA");
+  assert.equal(actos[0].numeroEscritura, "200");
 });
 
-test("un acto escrito a mano NO es lo mismo que uno de la lista sin tarifa", () => {
+// ── El mecanismo de "se registra pero no se liquida" sigue en pie ───────────
+// Hoy no lo usa nadie, pero el dia que llegue un acto sin tarifa conocida hay
+// que poder registrarlo sin que se calcule en cero calladamente.
+test("un acto escrito a mano no se reconoce ni se liquida", () => {
   assert.equal(esActoDeLaLista("CUALQUIER COSA"), false);
-  assert.equal(esActoDeLaLista("CONSTITUCIÓN PATRIMONIO DE FAMILIA"), true);
+  assert.equal(sePuedeLiquidar("CUALQUIER COSA"), false);
+  const { actos, sinTipo } = actosParaLiquidar([
+    { id: "z", acto: "CUALQUIER COSA", numeroEscritura: "300", fechaEscritura: "2026-08-20" },
+  ]);
+  assert.equal(actos.length, 0);
+  assert.equal(sinTipo.length, 1, "se aparta y se avisa, no se calcula en cero");
+});
+
+test("todo lo que se ofrece en Escrituras o se liquida o esta apartado a proposito", () => {
+  for (const acto of ACTOS_PARA_ESCRITURAS) {
+    const liquidable = sePuedeLiquidar(acto);
+    const apartado = ACTOS_SIN_TARIFA.includes(acto);
+    assert.ok(liquidable !== apartado, `"${acto}" tiene que ser una cosa o la otra`);
+  }
 });

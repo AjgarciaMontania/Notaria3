@@ -11,6 +11,7 @@ export default function InputSection({
   sucesion, onSucesionChange,
   sinCuantia, onSinCuantiaChange,
   cancelEnaje, onCancelEnajeChange,
+  patrimonio, onPatrimonioChange,
   dineroEnviado, onDineroChange,
   fechaPago, onFechaPagoChange,
   onIngresar, onCalcular, onLimpiar, onExportar, onImagen, onGuardar, calcularDisabled
@@ -105,11 +106,24 @@ export default function InputSection({
             <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               Cancelación Enajenación:
               <span
-                title="ORIP cobra $60.200 (2 actos: levantamiento + desistimiento). Tributaria: la Gobernación la calcula sobre el avalúo catastral (IGAC) — ingrésala manualmente en la celda naranja de la tabla cuando te la informen."
+                title="ORIP cobra $30.100 (un solo acto sin cuantía). Tributaria: la Gobernación la calcula sobre el avalúo catastral (IGAC) — ingrésala manualmente en la celda naranja de la tabla cuando te la informen."
                 style={{ cursor: "help", background: "#166534", color: "white", borderRadius: "50%", width: "18px", height: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: "bold", flexShrink: 0 }}
               >?</span>
             </label>
             <input type="number" placeholder="Cantidad" value={cancelEnaje} onChange={onCancelEnajeChange} min="0" />
+          </div>
+          <div className="input-group">
+            <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              Constitución Patrimonio de Familia:
+              <span
+                title={
+                  "Se cobra como acto sin cuantía: $30.100 de ORIP y $233.500 de tributaria, más el honorario de gestión.\n\n" +
+                  "Si una misma escritura trae varios, súbelos en la columna ACTOS de la tabla."
+                }
+                style={{ cursor: "help", background: "#166534", color: "white", borderRadius: "50%", width: "18px", height: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: "bold", flexShrink: 0 }}
+              >?</span>
+            </label>
+            <input type="number" placeholder="Cantidad" value={patrimonio} onChange={onPatrimonioChange} min="0" />
           </div>
         </div>
 

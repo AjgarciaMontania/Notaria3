@@ -29,6 +29,18 @@ import { formatNumberWithPoints } from "./utils/formatters";
 import "./index.css";
 
 const TODAY = new Date().toISOString().split("T")[0];
+
+/**
+ * Deja solo los actos de la tabla de liquidación.
+ *
+ * Después de calcular, la tabla guarda al final unas filas que no son actos:
+ * SUBTOTAL, HONORARIOS, TOTAL A CONSIGNAR, DINERO ENVIADO… Contarlas como
+ * actos daría números falsos ("ya tienes 9 actos" habiendo 2), y arrastrarlas
+ * al agregar dejaría los actos nuevos debajo de los totales.
+ */
+const soloActos = (filas) =>
+  filas.filter((f) => !f.isSummary && !f.isAdditional && !f.isNote);
+
 // El plazo vive en utils/configuracion.js, compartido con la APK.
 const INACTIVITY_TIMEOUT_MS = MINUTOS_INACTIVIDAD * 60 * 1000;
 
@@ -44,6 +56,7 @@ const COUNTS_INITIAL = {
   sucesion: "",
   sinCuantia: "",
   cancelEnaje: "",
+  patrimonio: "",
 };
 
 const TAB_STYLE_BASE = {
@@ -188,6 +201,7 @@ function App() {
     add("SUCESIÓN", parsed.sucesion);
     add("ACTO SIN CUANTÍA", parsed.sinCuantia);
     add("CANCELACIÓN ENAJENACIÓN", parsed.cancelEnaje);
+    add("CONSTITUCIÓN PATRIMONIO DE FAMILIA", parsed.patrimonio);
 
     setRows(newRows);
     setHasInserted(true);
@@ -407,6 +421,7 @@ function App() {
             sucesion={counts.sucesion} onSucesionChange={handleCountChange("sucesion")}
             sinCuantia={counts.sinCuantia} onSinCuantiaChange={handleCountChange("sinCuantia")}
             cancelEnaje={counts.cancelEnaje} onCancelEnajeChange={handleCountChange("cancelEnaje")}
+            patrimonio={counts.patrimonio} onPatrimonioChange={handleCountChange("patrimonio")}
             dineroEnviado={dineroEnviado} onDineroChange={handleDineroChange}
             fechaPago={fechaPago} onFechaPagoChange={handleFechaPagoChange}
             onIngresar={handleIngresar}
@@ -490,7 +505,34 @@ function App() {
         montaban siempre y ahora, con las reglas de Firebase cerradas,
         intentarían leer sin permiso y llenarían la consola de errores.
       */}
-      {activeTab === "escrituras" && isAdmin && <EscriturasPendientes isAdmin={isAdmin} />}
+      {activeTab === "escrituras" && isAdmin && (
+        <EscriturasPendientes
+          isAdmin={isAdmin}
+          actosCargados={soloActos(rows).length}
+          onLiquidar={(actos, modo) => {
+            // Las escrituras del panel traen acto, fecha y valor; aquí se les
+            // completa lo que la tabla de liquidación necesita para pintarlas.
+            const nuevas = actos.map((a) => {
+              const config = ACTOS_CONFIG[a.acto] || {};
+              return {
+                ...a,
+                numActos: config.oripTipo === "sin_cuantia" ? (config.oripCount || 1) : 1,
+                tributaria: null,
+                orip: null,
+                total: null,
+              };
+            });
+            // Al agregar se conservan solo los ACTOS de lo que había. Las
+            // filas de SUBTOTAL, TOTAL y demás se quitan a propósito: son el
+            // resultado del cálculo anterior, van al final de la tabla y, si
+            // se dejaran, los actos nuevos quedarían debajo de los totales.
+            // Vuelven a aparecer, ya al día, al pulsar Calcular.
+            setRows((previas) => (modo === "agregar" ? [...soloActos(previas), ...nuevas] : nuevas));
+            setHasInserted(true);
+            setActiveTab("liquidacion");
+          }}
+        />
+      )}
 
       {activeTab === "evidencias" && isAdmin && <Evidencias isAdmin={isAdmin} />}
 
