@@ -1327,3 +1327,22 @@ input:focus {
 .lista-actos .nombre { flex: 1; font-size: 0.9rem; }
 .lista-actos .plata { font-weight: 700; color: #166534; font-size: 0.86rem; white-space: nowrap; }
 .lista-actos p { margin: 8px 0 0; font-size: 0.78rem; }
+
+/* ── Orden por fecha ────────────────────────────────────────────────────────
+   Solo sale en «En registro» y «Enviadas», que son los dos estados con una
+   fecha por la que ordenar. */
+.orden-fecha {
+  width: 100%;
+  margin: 2px 0 6px;
+  padding: 9px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: white;
+  color: var(--verde);
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.orden-fecha:active { background: #f0fdf4; }

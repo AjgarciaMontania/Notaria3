@@ -91,3 +91,48 @@ export function registroDemorado(escritura, hasta = new Date()) {
   if (estadoEscritura(escritura) !== "en-registro") return false;
   return diasHabilesDesde(escritura.fechaRegistro, hasta) > DIAS_HABILES_REGISTRO;
 }
+
+/**
+ * Campo de fecha por el que se ordena cada filtro.
+ *
+ * Solo "En registro" y "Enviadas" tienen fecha propia. "Todas" y "Pendientes"
+ * conservan el orden de captura de siempre: una escritura pendiente no tiene
+ * ninguna fecha que la ponga antes o después de otra.
+ */
+export const CAMPO_FECHA_DEL_FILTRO = {
+  registro: "fechaRegistro",
+  enviadas: "fechaEnvio",
+};
+
+/**
+ * Ordena escrituras por una fecha, de la más antigua a la más reciente.
+ *
+ * En "En registro", la primera de la lista es la que lleva más tiempo
+ * esperando en la ORIP, o sea la PRÓXIMA en salir. De eso se trata: saber
+ * cuáles van saliendo y cuáles apenas entraron.
+ *
+ * Dos cuidados que importan:
+ *
+ *  - Se ordena sobre una COPIA. sort() reordena el arreglo original, y el
+ *    original suele ser el estado de React: revolverlo haría que la lista y
+ *    los datos dejaran de coincidir.
+ *  - Una escritura SIN fecha no se puede comparar con nada, así que se manda
+ *    al final mire como mire el orden. Si se dejara colar de primera parecería
+ *    la más urgente sin serlo.
+ *
+ * @param {Array<Object>} escrituras
+ * @param {string|null} campo  "fechaRegistro", "fechaEnvio" o null (no ordena)
+ * @param {"asc"|"desc"} orden  "asc" = la más antigua primero
+ * @returns {Array<Object>}
+ */
+export function ordenarPorFecha(escrituras = [], campo = null, orden = "asc") {
+  if (!campo) return escrituras;
+  return [...escrituras].sort((a, b) => {
+    const ta = Date.parse(a?.[campo]);
+    const tb = Date.parse(b?.[campo]);
+    if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+    if (Number.isNaN(ta)) return 1;
+    if (Number.isNaN(tb)) return -1;
+    return orden === "asc" ? ta - tb : tb - ta;
+  });
+}

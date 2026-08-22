@@ -271,4 +271,6 @@ export {
   aFechaLocal,
   desdeFechaLocal,
   hoyLocal,
+  ordenarPorFecha,
+  CAMPO_FECHA_DEL_FILTRO,
 } from "./registro.js";

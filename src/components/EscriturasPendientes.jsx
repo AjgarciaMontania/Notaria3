@@ -16,6 +16,8 @@ import {
   estadoEscritura,
   aFechaLocal,
   hoyLocal,
+  ordenarPorFecha,
+  CAMPO_FECHA_DEL_FILTRO,
 } from "../utils/soportesEscrituras";
 import { archivosHuerfanos } from "../utils/limpiezaArchivos";
 import { ACTOS_PARA_ESCRITURAS, sePuedeLiquidar, esActoDeLaLista } from "../utils/actoDesdeTexto";
@@ -118,8 +120,11 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
   // Solo "En registro" y "Enviadas" se pueden ordenar por fecha: son los dos
   // estados que tienen una. "Todas" y "Pendientes" conservan el orden de
   // captura de siempre.
-  const CAMPO_FECHA = { registro: "fechaRegistro", enviadas: "fechaEnvio" };
-  const campoOrden = CAMPO_FECHA[filtro] || null;
+  //
+  // El campo y el ordenamiento viven en utils/registro.js, compartidos con la
+  // APK: así la lista sale igual en el computador y en el celular, y hay un
+  // solo sitio donde equivocarse.
+  const campoOrden = CAMPO_FECHA_DEL_FILTRO[filtro] || null;
 
   const filtradas = filtro === "todas"
     ? escrituras
@@ -127,22 +132,7 @@ export default function EscriturasPendientes({ isAdmin, onLiquidar, actosCargado
 
   // De la más antigua a la más reciente: en registro, la primera de la lista es
   // la que lleva más tiempo esperando en la ORIP, o sea la próxima en salir.
-  //
-  // Se ordena sobre una COPIA. sort() reordena el arreglo original, y el
-  // original aquí es el estado de React: revolverlo haría que la tabla y los
-  // datos dejaran de coincidir.
-  const visibles = campoOrden
-    ? [...filtradas].sort((a, b) => {
-        const ta = Date.parse(a[campoOrden]);
-        const tb = Date.parse(b[campoOrden]);
-        // Una fila sin fecha no se puede comparar: se manda al final, mire
-        // como mire el orden, para que no se cuele de primera.
-        if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
-        if (Number.isNaN(ta)) return 1;
-        if (Number.isNaN(tb)) return -1;
-        return orden === "asc" ? ta - tb : tb - ta;
-      })
-    : filtradas;
+  const visibles = ordenarPorFecha(filtradas, campoOrden, orden);
 
   // Los conteos se sacan SIEMPRE de la lista completa: son para decidir a
   // dónde ir, así que tienen que verse aunque estés parado en otro filtro.

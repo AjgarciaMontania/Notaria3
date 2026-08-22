@@ -12,6 +12,7 @@ import {
   diasHabilesDesde,
   DIAS_HABILES_REGISTRO,
 } from '../lib/escrituras.js';
+import { ordenarPorFecha, CAMPO_FECHA_DEL_FILTRO } from '@calculo/registro.js';
 import { ACTOS_PARA_ESCRITURAS, TIPOS_DE_ACTO, sePuedeLiquidar, esActoDeLaLista } from '@calculo/actoDesdeTexto.js';
 import { actosParaLiquidar, actosDeEscritura, tieneVariosActos } from '@calculo/actosDeEscritura.js';
 import { formatNumberWithPoints } from '@calculo/formatters.js';
@@ -40,6 +41,10 @@ const ENTRADA_VACIA = {
 
 export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }) {
   const [filtro, setFiltro] = useState('pendientes');
+  // "asc" = la más antigua primero. En «En registro» esa es la que lleva más
+  // tiempo esperando en la ORIP, o sea la PRÓXIMA en salir. Es el orden con el
+  // que se trabaja, por eso es el que viene puesto.
+  const [orden, setOrden] = useState('asc');
   const [busqueda, setBusqueda] = useState('');
   const [seleccion, setSeleccion] = useState([]);
   const [aviso, setAviso] = useState(null);
@@ -91,12 +96,21 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
     setTimeout(() => setAviso(null), ms);
   };
 
-  const porEstado = escrituras.filter((e) =>
+  const sinOrdenar = escrituras.filter((e) =>
     filtro === 'pendientes' ? !e.enviado && !e.enRegistro
       : filtro === 'registro' ? e.enRegistro && !e.enviado
         : filtro === 'enviadas' ? e.enviado
           : true
   );
+
+  // Solo «En registro» y «Enviadas» tienen fecha propia por la que ordenar.
+  // «Todas» y «Pendientes» conservan el orden de captura: una escritura
+  // pendiente no tiene ninguna fecha que la ponga antes o después de otra.
+  //
+  // Es el mismo archivo compartido que usa la página web, para que las dos
+  // ordenen igual y la lista no cambie de un aparato a otro.
+  const campoOrden = CAMPO_FECHA_DEL_FILTRO[filtro] || null;
+  const porEstado = ordenarPorFecha(sinOrdenar, campoOrden, orden);
 
   // El buscador trabaja SOBRE el chip que esté puesto, no en vez de él: así
   // "en registro" + "420" da las que están en registro de esa matrícula.
@@ -603,6 +617,24 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
             </button>
           ))}
         </div>
+
+        {/* El orden solo aparece donde hay una fecha por la que ordenar. En
+            «Pendientes» y «Todas» no se muestra: no habría por qué. */}
+        {campoOrden && (
+          <button
+            className="orden-fecha"
+            onClick={() => setOrden((p) => (p === 'asc' ? 'desc' : 'asc'))}
+          >
+            {orden === 'asc' ? '↑' : '↓'}{' '}
+            {filtro === 'registro'
+              ? orden === 'asc'
+                ? 'Más antigua primero · la próxima en salir'
+                : 'Más reciente primero · la última en salir'
+              : orden === 'asc'
+                ? 'Enviada hace más tiempo primero'
+                : 'Enviada más reciente primero'}
+          </button>
+        )}
 
         <div className="buscador">
           <input

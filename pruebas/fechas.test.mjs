@@ -73,3 +73,64 @@ test("una fecha guardada por el sistema viejo se sigue leyendo bien", () => {
   const vieja = "2026-08-10T15:04:05.000Z";   // 10 de agosto, 10:04 a.m. en Colombia
   assert.equal(aFechaLocal(vieja), "2026-08-10");
 });
+
+// ─── Orden por fecha de registro o de envío ──────────────────────────────────
+//
+// En "En registro" la primera de la lista es la que lleva más tiempo esperando
+// en la ORIP, o sea la PRÓXIMA en salir. Si esto se invierte, se trabaja al
+// revés: se atienden primero las que acaban de entrar.
+import { ordenarPorFecha, CAMPO_FECHA_DEL_FILTRO } from '../src/utils/registro.js';
+
+const R = (n, fecha) => ({ numeroEscritura: n, fechaRegistro: fecha });
+
+test('la más antigua primero: la próxima en salir va de primera', () => {
+  const orden = ordenarPorFecha([
+    R('nueva', '2026-08-20T10:00:00Z'),
+    R('vieja', '2026-01-05T10:00:00Z'),
+    R('media', '2026-05-10T10:00:00Z'),
+  ], 'fechaRegistro', 'asc');
+  assert.deepEqual(orden.map((e) => e.numeroEscritura), ['vieja', 'media', 'nueva']);
+});
+
+test('al revés, la más reciente primero', () => {
+  const orden = ordenarPorFecha([
+    R('vieja', '2026-01-05T10:00:00Z'),
+    R('nueva', '2026-08-20T10:00:00Z'),
+  ], 'fechaRegistro', 'desc');
+  assert.deepEqual(orden.map((e) => e.numeroEscritura), ['nueva', 'vieja']);
+});
+
+test('una escritura SIN fecha se va al final, mire como mire el orden', () => {
+  // Sin fecha no se puede comparar. Colada de primera parecería la más
+  // urgente sin serlo.
+  const lista = [R('sin', ''), R('vieja', '2026-01-05T10:00:00Z'), R('nueva', '2026-08-20T10:00:00Z')];
+  assert.equal(ordenarPorFecha(lista, 'fechaRegistro', 'asc').at(-1).numeroEscritura, 'sin');
+  assert.equal(ordenarPorFecha(lista, 'fechaRegistro', 'desc').at(-1).numeroEscritura, 'sin');
+});
+
+test('NO revuelve el arreglo original', () => {
+  // El original suele ser el estado de React: revolverlo haría que la lista y
+  // los datos dejaran de coincidir.
+  const lista = [R('b', '2026-08-20T10:00:00Z'), R('a', '2026-01-05T10:00:00Z')];
+  const copia = [...lista];
+  ordenarPorFecha(lista, 'fechaRegistro', 'asc');
+  assert.deepEqual(lista, copia);
+});
+
+test('sin campo, se devuelve tal cual: pendientes no se reordenan', () => {
+  const lista = [R('b', '2026-08-20T10:00:00Z'), R('a', '2026-01-05T10:00:00Z')];
+  assert.equal(ordenarPorFecha(lista, null, 'asc'), lista);
+  assert.equal(ordenarPorFecha(lista, CAMPO_FECHA_DEL_FILTRO.pendientes, 'asc'), lista);
+});
+
+test('cada filtro ordena por SU fecha', () => {
+  assert.equal(CAMPO_FECHA_DEL_FILTRO.registro, 'fechaRegistro');
+  assert.equal(CAMPO_FECHA_DEL_FILTRO.enviadas, 'fechaEnvio');
+  assert.equal(CAMPO_FECHA_DEL_FILTRO.todas, undefined);
+});
+
+test('aguanta listas vacías y basura', () => {
+  assert.deepEqual(ordenarPorFecha([], 'fechaRegistro', 'asc'), []);
+  assert.deepEqual(ordenarPorFecha(undefined, 'fechaRegistro', 'asc'), []);
+  assert.equal(ordenarPorFecha([null, R('a', '2026-01-05T10:00:00Z')], 'fechaRegistro', 'asc').length, 2);
+});
