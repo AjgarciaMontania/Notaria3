@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Browser } from '@capacitor/browser';
 import {
   agregarEscritura,
+  actualizarEscritura,
   subirSoporteYMarcarEnviadas,
   revertirEnvio,
   eliminarEscritura,
@@ -342,19 +343,48 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
 
   const abrirSoporte = (registro) => abrirEnlace(registro.soporteURL);
 
-  // ── Guardar escritura nueva ───────────────────────────────────────────────
+  // ── Guardar: el mismo formulario sirve para crear y para editar ──────────
+  // Lo que decide es si el formulario trae `id`: si lo trae, es una escritura
+  // que ya existe y se actualiza; si no, es nueva.
   const guardarNueva = async (e) => {
     e.preventDefault();
     setGuardando(true);
     try {
-      await agregarEscritura(formulario);
+      if (formulario.id) {
+        await actualizarEscritura(formulario.id, formulario);
+        mostrar('ok', 'Escritura actualizada');
+      } else {
+        await agregarEscritura(formulario);
+        mostrar('ok', 'Escritura agregada');
+      }
       setFormulario(null);
-      mostrar('ok', 'Escritura agregada');
     } catch (error) {
       mostrar('error', error.message, 7000);
     } finally {
       setGuardando(false);
     }
+  };
+
+  /**
+   * Abre el formulario con los datos de una escritura que ya existe.
+   *
+   * actosDeEscritura() lee tanto la lista nueva como las escrituras viejas de
+   * un solo acto, así que aquí no hay que preguntar cuál es cuál: una guardada
+   * hace meses se abre igual que una de ayer.
+   */
+  const editar = (escritura) => {
+    setFormulario({
+      id: escritura.id,
+      actos: actosDeEscritura(escritura).map((a) => ({
+        acto: a.acto,
+        valorActo: a.valorActo ? formatNumberWithPoints(String(a.valorActo)) : '',
+      })),
+      numeroEscritura: escritura.numeroEscritura || '',
+      fechaEscritura: escritura.fechaEscritura || '',
+      matricula: escritura.matricula || '',
+      notaDevolutiva: escritura.notaDevolutiva || 'NO',
+      motivo: escritura.motivo || '',
+    });
   };
 
   // ══ Pantalla del escáner ══════════════════════════════════════════════════
@@ -433,7 +463,7 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
             ‹ Cancelar
           </button>
           <div className="barra-centro">
-            <h1>Nueva escritura</h1>
+            <h1>{formulario.id ? 'Editar escritura' : 'Nueva escritura'}</h1>
           </div>
         </header>
 
@@ -536,7 +566,7 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
           {campo('motivo', 'Motivo (opcional)', { placeholder: 'Solo si tiene nota devolutiva' })}
 
           <button type="submit" className="boton principal ancho" disabled={guardando}>
-            {guardando ? 'Guardando…' : 'Guardar escritura'}
+            {guardando ? 'Guardando…' : formulario.id ? 'Guardar cambios' : 'Guardar escritura'}
           </button>
         </form>
       </div>
@@ -757,11 +787,19 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
                     )
                   )}
 
-                  {!e.enviado && (
-                    <button className="borrar-escritura" onClick={() => borrar(e)}>
-                      🗑️ Eliminar escritura
+                  {/* Editar sirve sobre todo para desglosar en varios actos las
+                      que quedaron con uno solo, y para completar la cuantía que
+                      falta. No cambia el estado del trámite. */}
+                  <div className="fila-botones">
+                    <button className="boton gris" onClick={() => editar(e)}>
+                      ✏️ Editar
                     </button>
-                  )}
+                    {!e.enviado && (
+                      <button className="boton peligro fantasma" onClick={() => borrar(e)}>
+                        🗑️ Eliminar
+                      </button>
+                    )}
+                  </div>
 
                   {e.enviado && (
                     <div className="escritura-envio">
@@ -774,9 +812,6 @@ export default function Escrituras({ escrituras, cargando, onSalir, onLiquidar }
                         )}
                         <button className="boton gris" onClick={() => devolverAPendiente(e)}>
                           ↩ A pendiente
-                        </button>
-                        <button className="boton gris" onClick={() => borrar(e)}>
-                          🗑️ Eliminar
                         </button>
                       </div>
                     </div>

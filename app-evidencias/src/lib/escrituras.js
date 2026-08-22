@@ -61,16 +61,31 @@ export async function agregarEscritura(datos) {
 }
 
 /**
- * Cambia los actos de una escritura ya guardada.
+ * Guarda los cambios de una escritura que ya existe.
  *
- * Sirve para desglosar las que quedaron como "VARIOS" y para completar las
- * que no tienen cuantía, que son todas las anteriores a este cambio.
+ * Sirve sobre todo para desglosar las que quedaron como "VARIOS" en un solo
+ * acto y para completar las que no tienen cuantía, que son todas las
+ * anteriores a este cambio.
+ *
+ * NO toca el estado del trámite —enviado, enRegistro, recibos, soportes— ni el
+ * número de ítem: eso lo maneja el recorrido de la escritura, no el formulario.
+ * Si esto los escribiera, editar una escritura para corregirle una fecha la
+ * devolvería a pendiente y se perdería el recibo ya adjuntado.
  */
-export async function actualizarActos(escritura, actos) {
-  if (!escritura?.id) throw new Error('Escritura no válida');
-  const campos = camposDeActos(actos);
+export async function actualizarEscritura(id, datos) {
+  if (!id) throw new Error('Escritura no válida');
+  const campos = camposDeActos(datos.actos || []);
   if (campos.actos.length === 0) throw new Error('Elige al menos un acto');
-  await updateDoc(doc(db, 'escrituras', escritura.id), campos);
+  if (!datos.numeroEscritura?.trim()) throw new Error('Escribe el número de escritura');
+
+  await updateDoc(doc(db, 'escrituras', id), {
+    numeroEscritura: datos.numeroEscritura.trim(),
+    fechaEscritura: datos.fechaEscritura || '',
+    matricula: datos.matricula?.trim() || '',
+    notaDevolutiva: datos.notaDevolutiva || 'NO',
+    motivo: datos.motivo?.trim() || '',
+    ...campos,
+  });
 }
 
 /**
