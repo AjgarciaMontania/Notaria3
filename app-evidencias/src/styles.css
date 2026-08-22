@@ -786,6 +786,17 @@ input:focus {
 .cuerpo-pestanas {
   flex: 1;
   min-height: 0;
+  /* Nada de lo que haya adentro puede desbordarse y empujar la aplicación.
+     Cada pantalla se desplaza por dentro; la barra de pestañas se queda
+     quieta abajo pase lo que pase. */
+  overflow: hidden;
+}
+
+/* Cada pestaña ocupa toda la altura disponible, ni más ni menos. Sin esto, la
+   pantalla de adentro (que es height: 100%) no tiene contra qué medirse, se
+   queda en «auto» y crece hasta desplazar la aplicación entera. */
+.capa-pestana {
+  height: 100%;
 }
 
 .pestanas {

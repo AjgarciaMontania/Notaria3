@@ -302,7 +302,17 @@ export default function App() {
             Esconderla en vez de quitarla también es lo que hace que traer
             escrituras desde el otro panel tenga sentido: al llegar, lo que ya
             había sigue ahí y se puede preguntar si reemplazar o agregar. */}
-        <div style={pestana === 'liquidacion' ? undefined : { display: 'none' }}>
+        {/* OJO con la altura: esta capa tiene que medir el 100%, no crecer
+            con su contenido. La pantalla de adentro es `height: 100%` y su
+            lista se desplaza sola; si esta capa no tiene altura, ese 100% se
+            queda en «auto», la lista deja de desplazarse por dentro y crece
+            hacia abajo hasta empujar TODA la aplicación. Cuando eso pasaba, al
+            desplazar en la liquidación la barra de pestañas se iba hacia
+            arriba y quedaba en mitad de la pantalla. */}
+        <div
+          className="capa-pestana"
+          style={pestana === 'liquidacion' ? undefined : { display: 'none' }}
+        >
           <Liquidacion onSalir={salir} entrantes={actosEntrantes} />
         </div>
       </div>
