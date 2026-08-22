@@ -9,6 +9,11 @@
     "StatusBar": {
       "style": "DARK",
       "backgroundColor": "#166534"
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "appReadyTimeout": 10000,
+      "resetWhenUpdate": true
     }
   }
 }

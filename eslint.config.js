@@ -15,7 +15,13 @@ export default defineConfig([
     ],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser,
+      globals: {
+        ...globals.browser,
+        // Lo inyecta vite al compilar la APK (ver app-evidencias/vite.config.js):
+        // el commit con el que se armó el paquete, que es lo que decide si hay
+        // una actualización nueva.
+        __COMMIT__: 'readonly',
+      },
       parserOptions: {
         ecmaVersion: 'latest',
         ecmaFeatures: { jsx: true },

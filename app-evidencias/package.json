@@ -22,6 +22,7 @@
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/share": "^8.0.1",
     "@capacitor/status-bar": "^8.0.3",
+    "@capgo/capacitor-updater": "^8.51.14",
     "firebase": "^12.17.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
